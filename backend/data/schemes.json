@@ -1,0 +1,816 @@
+{
+  "metadata": {
+    "database_name": "Scheme Saathi Government Scheme Knowledge Base",
+    "authority": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+    "ministry": "Ministry of Social Justice and Empowerment, Government of India",
+    "primary_scheme_count": 5,
+    "secondary_scheme_count": 1,
+    "scope": "NSFDC primary credit schemes relevant to the problem statement plus connected secondary support",
+    "general_eligibility_rule": {
+      "community": {
+        "required": true,
+        "allowed": ["SC"],
+        "valid_caste_certificate_required": true
+      },
+      "annual_family_income": {
+        "operator": "<=",
+        "amount_inr": 500000,
+        "applies_to": "NSFDC credit schemes",
+        "effective_from": "2026-01-07"
+      }
+    },
+    "source_registry": [
+      {
+        "source_id": "NSFDC_FAQ",
+        "authority": "NSFDC",
+        "url": "https://nsfdc.nic.in/faqs",
+        "source_type": "official_webpage"
+      },
+      {
+        "source_id": "NSFDC_POLICY",
+        "authority": "NSFDC",
+        "url": "https://nsfdc.nic.in/information-disclosed-on-own-initiative",
+        "source_type": "official_policy_registry"
+      },
+      {
+        "source_id": "NSFDC_VISVAS",
+        "authority": "NSFDC / Ministry of Social Justice and Empowerment",
+        "url": "https://nsfdc.nic.in/index.php/visvas",
+        "source_type": "official_webpage"
+      }
+    ],
+    "knowledge_base_policy": {
+      "source_of_truth": "official_government_sources",
+      "eligibility_authority": "deterministic_rule_engine",
+      "ai_role": [
+        "discovery",
+        "ranking",
+        "explanation"
+      ],
+      "ai_must_not_override_eligibility": true,
+      "final_approval_authority": "authorized_channel_agency_or_lending_institution"
+    },
+    "last_reviewed": "2026-08-31"
+  },
+
+  "schemes": [
+    {
+      "id": "MFS",
+      "name": "Micro Finance Scheme",
+      "short_name": "MFS",
+      "type": "PRIMARY",
+      "authority": "NSFDC",
+
+      "purpose": [
+        "small business activities",
+        "income-generating activities",
+        "self-employment"
+      ],
+
+      "eligibility": {
+        "community": {
+          "required": true,
+          "allowed": ["SC"],
+          "valid_caste_certificate_required": true
+        },
+
+        "annual_family_income": {
+          "operator": "<=",
+          "amount_inr": 500000,
+          "effective_from": "2026-01-07"
+        },
+
+        "gender_rule": {
+          "type": "women_target",
+          "target_percent": 40,
+          "meaning": "40 percent of total funds are targeted for women beneficiaries",
+          "female_only": false
+        },
+
+        "project_cost": {
+          "maximum_inr": 140000,
+          "operator": "<="
+        }
+      },
+
+      "financial_terms": {
+        "maximum_project_cost_inr": 140000,
+        "maximum_loan_amount_inr": 125000,
+        "finance_coverage_percent": 90,
+        "beneficiary_interest_rate_percent": 6.5,
+        "repayment_period_years": 3,
+        "moratorium_months": 3,
+        "repayment_frequency": "quarterly"
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "caste_certificate",
+            "name": "Valid Caste Certificate",
+            "mandatory": true,
+            "source_type": "government"
+          },
+          {
+            "id": "income_proof",
+            "name": "Income Proof",
+            "mandatory": true,
+            "source_type": "government_or_agency"
+          },
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "agency"
+          }
+        ],
+        "conditional": [
+          {
+            "id": "business_project_documents",
+            "name": "Business / Project Documents",
+            "mandatory": true,
+            "condition": "as_required_by_channel_agency"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "implementation": [
+          "SCAs",
+          "CAs"
+        ],
+        "direct_application_to_nsfdc": false,
+        "application_route": [
+          "authorized_channelizing_agency",
+          "official_digital_route_if_available"
+        ]
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "micro finance",
+          "small business",
+          "small project",
+          "self employment",
+          "income generation"
+        ],
+        "strong_signals": [
+          "project_cost_up_to_140000",
+          "loan_requirement_within_125000"
+        ],
+        "gender_signal": "women_target_only"
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_FAQ",
+        "official_url": "https://nsfdc.nic.in/faqs",
+        "policy_registry_url": "https://nsfdc.nic.in/information-disclosed-on-own-initiative",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31",
+        "change_action": "replace_version_only_after_official_source_verification"
+      }
+    },
+
+    {
+      "id": "AMY",
+      "name": "Aajeevika Micro-Finance Yojana",
+      "short_name": "AMY",
+      "type": "PRIMARY",
+      "authority": "NSFDC",
+
+      "purpose": [
+        "micro-finance",
+        "small income-generating activities",
+        "small business activities"
+      ],
+
+      "eligibility": {
+        "community": {
+          "required": true,
+          "allowed": ["SC"],
+          "valid_caste_certificate_required": true
+        },
+
+        "annual_family_income": {
+          "operator": "<=",
+          "amount_inr": 500000,
+          "effective_from": "2026-01-07"
+        },
+
+        "gender_rule": {
+          "type": "none",
+          "female_only": false
+        },
+
+        "project_cost": {
+          "maximum_inr": 140000,
+          "operator": "<="
+        }
+      },
+
+      "financial_terms": {
+        "maximum_project_cost_inr": 140000,
+        "maximum_loan_amount_inr": 125000,
+        "finance_coverage_percent": 90,
+        "beneficiary_interest_rate_percent": 15,
+        "repayment_period_years": 3,
+        "moratorium_months": 3
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "caste_certificate",
+            "name": "Valid Caste Certificate",
+            "mandatory": true,
+            "source_type": "government"
+          },
+          {
+            "id": "income_proof",
+            "name": "Income Proof",
+            "mandatory": true,
+            "source_type": "government_or_agency"
+          },
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "agency"
+          }
+        ],
+        "conditional": [
+          {
+            "id": "business_project_documents",
+            "name": "Business / Activity Documents",
+            "mandatory": true,
+            "condition": "as_required_by_channel_agency"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "implementation": [
+          "selected NBFC-MFIs"
+        ],
+        "direct_application_to_nsfdc": false,
+        "implementing_partner_type": "NBFC-MFI"
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "micro finance",
+          "micro enterprise",
+          "small business",
+          "income generation"
+        ],
+        "strong_signals": [
+          "project_cost_up_to_140000",
+          "micro_finance_requirement",
+          "NBFC_MFI_channel_preference"
+        ]
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_FAQ",
+        "supporting_source": "NSFDC 2024 scheme compendium",
+        "official_url": "https://nsfdc.nic.in/faqs",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31"
+      }
+    },
+
+    {
+      "id": "TERM_LOAN",
+      "name": "Term Loan",
+      "short_name": "TL",
+      "type": "PRIMARY",
+      "authority": "NSFDC",
+
+      "purpose": [
+        "larger income-generating projects",
+        "self-employment",
+        "business expansion",
+        "entrepreneurship"
+      ],
+
+      "eligibility": {
+        "community": {
+          "required": true,
+          "allowed": ["SC"],
+          "valid_caste_certificate_required": true
+        },
+
+        "annual_family_income": {
+          "operator": "<=",
+          "amount_inr": 500000,
+          "effective_from": "2026-01-07"
+        },
+
+        "gender_rule": {
+          "type": "women_target",
+          "target_percent": 40,
+          "meaning": "40 percent of total funds are targeted for women beneficiaries",
+          "female_only": false
+        },
+
+        "project_cost": {
+          "minimum_exclusive_inr": 140000,
+          "maximum_inr": 5000000
+        }
+      },
+
+      "financial_terms": {
+        "minimum_project_cost_exclusive_inr": 140000,
+        "maximum_project_cost_inr": 5000000,
+        "maximum_loan_amount_inr": 4500000,
+        "finance_coverage_percent": 90,
+        "beneficiary_interest_rate_percent": 8,
+        "repayment_period_years": 7,
+        "moratorium_months": 6,
+        "extended_moratorium": {
+          "eligible_activity_types": [
+            "plantation",
+            "construction"
+          ],
+          "extended_moratorium_months": 12
+        }
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "caste_certificate",
+            "name": "Valid Caste Certificate",
+            "mandatory": true,
+            "source_type": "government"
+          },
+          {
+            "id": "income_proof",
+            "name": "Income Proof",
+            "mandatory": true,
+            "source_type": "government_or_agency"
+          },
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "agency"
+          }
+        ],
+        "conditional": [
+          {
+            "id": "detailed_project_report",
+            "name": "Detailed Project / Business Documents",
+            "mandatory": true,
+            "condition": "as_required_by_channel_agency"
+          },
+          {
+            "id": "business_registration",
+            "name": "Business Registration / Supporting Business Documents",
+            "mandatory": false,
+            "condition": "where_applicable"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "implementation": [
+          "SCAs",
+          "CAs"
+        ],
+        "direct_application_to_nsfdc": false,
+        "possible_channel_types": [
+          "banks",
+          "RRBs",
+          "other_authorized_channelizing_agencies"
+        ]
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "term loan",
+          "larger project",
+          "business expansion",
+          "self employment",
+          "entrepreneurship"
+        ],
+        "strong_signals": [
+          "project_cost_above_140000",
+          "project_cost_within_5000000",
+          "loan_requirement_within_4500000"
+        ],
+        "gender_signal": "women_target_only"
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_FAQ",
+        "policy_registry_url": "https://nsfdc.nic.in/information-disclosed-on-own-initiative",
+        "official_url": "https://nsfdc.nic.in/faqs",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31"
+      }
+    },
+
+    {
+      "id": "UNY",
+      "name": "Udyam Nidhi Yojana",
+      "short_name": "UNY",
+      "type": "PRIMARY",
+      "authority": "NSFDC",
+
+      "purpose": [
+        "small activities",
+        "micro activities",
+        "entrepreneurship",
+        "income generation"
+      ],
+
+      "eligibility": {
+        "community": {
+          "required": true,
+          "allowed": ["SC"],
+          "valid_caste_certificate_required": true
+        },
+
+        "annual_family_income": {
+          "operator": "<=",
+          "amount_inr": 500000,
+          "effective_from": "2026-01-07"
+        },
+
+        "gender_rule": {
+          "type": "none",
+          "female_only": false
+        },
+
+        "project_cost": {
+          "maximum_inr": 500000,
+          "operator": "<="
+        }
+      },
+
+      "financial_terms": {
+        "maximum_project_cost_inr": 500000,
+        "maximum_loan_amount_inr": 450000,
+        "finance_coverage_percent": 90,
+
+        "interest_rate": {
+          "type": "channel_dependent",
+          "options": [
+            {
+              "channel_types": [
+                "Cooperative Societies",
+                "Cooperative Banks"
+              ],
+              "beneficiary_interest_rate_percent": 13
+            },
+            {
+              "channel_types": [
+                "Small Finance Banks"
+              ],
+              "beneficiary_interest_rate_percent": 15
+            }
+          ]
+        },
+
+        "repayment_period_years": 5,
+        "moratorium_months": 3
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "caste_certificate",
+            "name": "Valid Caste Certificate",
+            "mandatory": true,
+            "source_type": "government"
+          },
+          {
+            "id": "income_proof",
+            "name": "Income Proof",
+            "mandatory": true,
+            "source_type": "government_or_agency"
+          },
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "agency"
+          }
+        ],
+        "conditional": [
+          {
+            "id": "activity_documents",
+            "name": "Business / Activity Documents",
+            "mandatory": true,
+            "condition": "as_required_by_channel_agency"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "implementation": [
+          "Cooperative Societies",
+          "Cooperative Banks",
+          "Small Finance Banks"
+        ],
+        "direct_application_to_nsfdc": false
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "udyam",
+          "small enterprise",
+          "micro activity",
+          "entrepreneurship"
+        ],
+        "strong_signals": [
+          "project_cost_up_to_500000",
+          "loan_requirement_up_to_450000"
+        ],
+        "interest_rate_signal": "channel_dependent"
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_FAQ",
+        "official_url": "https://nsfdc.nic.in/faqs",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31"
+      }
+    },
+
+    {
+      "id": "ELS",
+      "name": "Educational Loan Scheme",
+      "short_name": "ELS",
+      "type": "PRIMARY",
+      "authority": "NSFDC",
+
+      "purpose": [
+        "professional education",
+        "technical education",
+        "higher education",
+        "doctoral studies where covered by applicable rules"
+      ],
+
+      "eligibility": {
+        "community": {
+          "required": true,
+          "allowed": ["SC"],
+          "valid_caste_certificate_required": true
+        },
+
+        "annual_family_income": {
+          "operator": "<=",
+          "amount_inr": 500000,
+          "effective_from": "2026-01-07"
+        },
+
+        "gender_rule": {
+          "type": "none",
+          "female_only": false
+        },
+
+        "education_requirement": {
+          "mode": [
+            "regular",
+            "full-time"
+          ],
+          "course_type": [
+            "professional",
+            "technical"
+          ],
+          "recognition_required": true,
+          "study_level": [
+            "graduate",
+            "higher"
+          ],
+          "study_location": [
+            "India",
+            "Abroad"
+          ]
+        }
+      },
+
+      "financial_terms": {
+        "maximum_loan_amount_inr": 4000000,
+        "maximum_finance_percent_of_course_fee": 90,
+        "beneficiary_interest_rate_percent": 6.5,
+        "repayment_period_years": {
+          "minimum": 10,
+          "maximum": 12
+        },
+        "moratorium": {
+          "standard": "course_duration_plus_1_year",
+          "alternative_months": 6
+        }
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "caste_certificate",
+            "name": "Valid Caste Certificate",
+            "mandatory": true,
+            "source_type": "government"
+          },
+          {
+            "id": "income_proof",
+            "name": "Income Proof",
+            "mandatory": true,
+            "source_type": "government_or_agency"
+          },
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "agency"
+          }
+        ],
+        "education": [
+          {
+            "id": "admission_or_enrollment_proof",
+            "name": "Admission / Enrollment Evidence",
+            "mandatory": true,
+            "condition": "education_requirement"
+          },
+          {
+            "id": "course_fee_document",
+            "name": "Course Fee / Institution Fee Document",
+            "mandatory": true,
+            "condition": "education_requirement"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "implementation": [
+          "SCAs",
+          "CAs"
+        ],
+        "direct_application_to_nsfdc": false
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "education loan",
+          "professional education",
+          "technical education",
+          "higher education"
+        ],
+        "strong_signals": [
+          "purpose_education",
+          "professional_or_technical_course",
+          "course_fee_within_financing_limit"
+        ]
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_FAQ",
+        "policy_registry_url": "https://nsfdc.nic.in/information-disclosed-on-own-initiative",
+        "official_url": "https://nsfdc.nic.in/faqs",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31"
+      }
+    },
+
+    {
+      "id": "VISVAS",
+      "name": "Vanchit Ikai Samooh aur Vargon ki Aarthik Sahayata Yojana",
+      "short_name": "VISVAS",
+      "type": "SECONDARY_CONNECTED",
+      "authority": "Ministry of Social Justice and Empowerment / NSFDC",
+
+      "purpose": [
+        "interest subvention",
+        "lower effective interest burden"
+      ],
+
+      "eligibility": {
+        "community": {
+          "allowed": [
+            "SC",
+            "OBC",
+            "Safai Karamcharis"
+          ]
+        },
+
+        "gender_rule": {
+          "type": "none",
+          "female_only": false
+        },
+
+        "individual": {
+          "maximum_loan_limit_inr": 500000,
+          "interest_subvention_percent": 5
+        },
+
+        "shg": {
+          "minimum_qualifying_members_percent": 70,
+          "maximum_loan_or_cash_credit_limit_inr": 1000000,
+          "interest_subvention_percent": 5
+        }
+      },
+
+      "financial_terms": {
+        "individual_interest_subvention_percent": 5,
+        "individual_loan_limit_inr": 500000,
+        "shg_interest_subvention_percent": 5,
+        "shg_loan_limit_inr": 1000000
+      },
+
+      "required_documents": {
+        "common": [
+          {
+            "id": "kyc",
+            "name": "KYC / Identity Documents",
+            "mandatory": true,
+            "source_type": "lending_institution"
+          }
+        ],
+        "conditional": [
+          {
+            "id": "loan_account_documents",
+            "name": "Loan / Account Documents",
+            "mandatory": true,
+            "condition": "as_required_by_lending_institution"
+          }
+        ],
+        "channel_specific": true
+      },
+
+      "channel_requirements": {
+        "lending_institutions": [
+          "Public Sector Banks",
+          "Regional Rural Banks",
+          "Private Sector Banks",
+          "Small Finance Banks",
+          "other similar Financial Institutions"
+        ]
+      },
+
+      "recommendation_behavior": {
+        "primary_recommendation": false,
+        "show_as_related_support": true,
+        "display_as": "interest_subvention",
+        "requires_separate_eligibility_check": true,
+        "must_not_be_counted_as_primary_scheme": true
+      },
+
+      "matching": {
+        "semantic_tags": [
+          "interest subvention",
+          "lower interest",
+          "existing loan",
+          "loan interest support"
+        ],
+        "strong_signals": [
+          "supported_lending_institution",
+          "qualifying_existing_loan"
+        ]
+      },
+
+      "source": {
+        "primary_source_id": "NSFDC_VISVAS",
+        "official_url": "https://nsfdc.nic.in/index.php/visvas",
+        "verified_on": "2026-08-31"
+      },
+
+      "versioning": {
+        "version": 1,
+        "status": "active",
+        "verified_on": "2026-08-31"
+      }
+    }
+  ]
+}
