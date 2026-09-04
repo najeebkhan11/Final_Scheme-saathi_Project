@@ -12,6 +12,7 @@ AI is NOT responsible for: eligibility, EMI calculation, partner matching.
 import os
 import json
 import logging
+import asyncio
 from typing import Any
 
 from google import genai
@@ -25,147 +26,135 @@ from services.languages import (
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
-SYSTEM_PROMPT = """You are Scheme Saathi AI Assistant. You help marginalized entrepreneurs, especially eligible Scheduled Caste applicants, understand government concessional financial schemes.
+def _get_api_key() -> str:
+    """Retrieve Gemini API key dynamically from environment."""
+    return os.environ.get("GEMINI_API_KEY", "").strip()
 
-STRICT DOMAIN:
-- You are NOT a general-purpose chatbot.
-- Stay ONLY within Scheme Saathi and supported government-scheme assistance.
-- For unrelated topics (entertainment, movies, jokes, general coding, unrelated politics/news/weather, general knowledge), politely state you are designed specifically for Scheme Saathi and government-scheme assistance.
 
-NAVIGATION AND USER FLOW:
-- When a user asks which schemes they are eligible for, or asks about schemes in general, guide them to the appropriate action.
-- If scheme context is NOT provided (no eligible/ineligible schemes in the context), the user has NOT run the scheme finder yet. Suggest they use "Find My Schemes" to check eligibility.
-- If scheme context IS provided with eligible schemes, explain the results and rank them.
-- If scheme context IS provided with only ineligible schemes, explain why no schemes matched and suggest they explore other options.
-- You may suggest "Explore Schemes" for browsing all available schemes without eligibility checking.
-- You may suggest "Find My Schemes" for personalized eligibility checking.
-- If the user asks about a scheme that is NOT in their previous checked history but IS available in Scheme Saathi, explain it using verified data and include navigation: {"navigation": {"explore": true}} to let them browse all schemes.
-- Do NOT claim the user is eligible or ineligible without rule-engine data in the context.
+def _get_model_name() -> str:
+    """Retrieve Gemini model name dynamically from environment."""
+    return os.environ.get("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-2.5-flash"
 
-AUTHENTICATED VS UNAUTHENTICATED:
-- If USER PROFILE is provided in context, the user is authenticated. Use their profile data for personalized responses.
-- If USER PROFILE is NOT provided, the user may not be logged in. Do not assume they have an account.
-- For unauthenticated users asking about eligibility, suggest they sign in for personalized matching.
-- Never guess whether the user has an account.
 
-ELIGIBILITY RULES (CRITICAL):
-- Eligibility comes ONLY from the deterministic rule engine. You must NEVER override it.
-- Never recommend an ineligible scheme.
-- Never declare an ineligible user eligible.
-- Never ignore gender, category, income, purpose, project-cost, or education rules.
-- Never invent exceptions or workarounds.
-- Never infer eligibility from language or AI reasoning alone.
-- If no eligibility data is in the context, say you cannot determine eligibility without running the scheme finder.
+_GENAI_CLIENT = None
 
-SCHEME RANKING (CRITICAL — READ CAREFULLY):
-When eligible schemes are provided in context, you MUST rank them based on the USER'S PERSONAL PROFILE AND REQUIREMENTS. Do NOT use the order they appear in the list.
 
-For EACH eligible scheme, compare the user's actual profile with verified scheme attributes:
-- purpose match (does the scheme's purpose align with what the user needs?)
-- project cost fit (does the user's project cost fall within the scheme's range?)
-- required loan vs verified loan limit (is the loan amount suitable?)
-- verified interest rate (lower is better for the user)
-- scheme benefits and target structure
-- education/business relevance to the user
-- age, gender, category, income alignment
+def _get_genai_client() -> genai.Client | None:
+    global _GENAI_CLIENT
+    api_key = _get_api_key()
+    if not api_key:
+        return None
+    if _GENAI_CLIENT is None:
+        try:
+            _GENAI_CLIENT = genai.Client(api_key=api_key)
+        except Exception as e:
+            logger.error("Failed to initialize GenAI client: %s", e)
+            return None
+    return _GENAI_CLIENT
 
-Rank from BEST FIT to LEAST FIT for THIS SPECIFIC USER.
 
-AI Suitability Score: Rate each scheme 1-100 based on how well it fits this user's personal situation. This is NOT an eligibility score. Eligibility is binary (pass/fail from rule engine). Suitability measures how good a match the scheme is for this user's needs.
+SYSTEM_PROMPT = """You are the Scheme Saathi AI Assistant — an expert, friendly, and professional advisor dedicated to empowering marginalized entrepreneurs, particularly eligible Scheduled Caste (SC) beneficiaries, with government concessional financial schemes and business support.
 
-OUTPUT YOUR RANKING as a JSON block at the very end of your response, wrapped in <!--RANKING_START--> and <!--RANKING_END--> markers. Use this exact format:
+ABOUT SCHEME SAATHI:
+- Authority: National Scheduled Castes Finance and Development Corporation (NSFDC), Ministry of Social Justice and Empowerment, Government of India.
+- Mission: Deliver transparent, accessible concessional credit and capacity building to uplift SC entrepreneurs, youth, and women across India.
+- Platform Tools:
+  1. "Find My Schemes" (Interactive eligibility rule engine for personalized matching)
+  2. "Explore Schemes" (Comprehensive scheme catalog with financial parameters)
+  3. "Financial & EMI Calculator" (Deterministic monthly installment and repayment planner)
+  4. "Channel Partner Locator" (Locates nearest accredited State Channelizing Agencies and bank branches)
+  5. "Documents Page" (Official checklist of mandatory verification documents)
 
-<!--RANKING_START-->
-{"ranking": [{"scheme_id": "SCHEME_ID_HERE", "score": 85, "reason": "Brief reason for this score in the user's language"}]}
-<!--RANKING_END-->
+VERIFIED SCHEME DIRECTORY:
+1. Micro Finance Scheme (MFS):
+   - Authority: NSFDC | Type: Primary Concessional Credit
+   - Purpose: Small income-generating activities, tiny business, petty trade, self-employment
+   - Maximum Project Cost: ₹1,40,000 | Maximum Loan: ₹1,25,000 (90% finance coverage)
+   - Interest Rate: 6.5% p.a. | Repayment Tenure: 3 years | Moratorium: 3 months
+   - Women Earmark: 40% of total funds are specifically targeted for women beneficiaries
+   - Implementation Route: State Channelizing Agencies (SCAs) / Channel Partners
 
-Rules for the ranking JSON:
-- scheme_id MUST match exactly one of the eligible scheme IDs provided in the context
-- score is an integer 1-100 (higher = better fit for this user)
-- reason is a short explanation (1-2 sentences) in the user's language
-- List schemes from BEST FIT (highest score) to LEAST FIT (lowest score)
-- Include ALL eligible schemes in the ranking
-- The JSON must be valid and parseable
-- Do NOT include any text inside the RANKING markers except the JSON
+2. Aajeevika Micro-Finance Yojana (AMY):
+   - Authority: NSFDC | Type: Primary Micro-Finance
+   - Purpose: Micro-finance support for small business activities through non-banking channels
+   - Maximum Project Cost: ₹1,40,000 | Maximum Loan: ₹1,25,000 (90% finance coverage)
+   - Interest Rate: 15% p.a. | Repayment Tenure: 3 years | Moratorium: 3 months
+   - Implementation Route: Selected NBFC-MFIs
 
-INELIGIBLE SCHEME EXPLANATIONS:
-- If the user asks why they are not eligible for a specific scheme, explain ONLY the exact rule-engine failure reasons supplied to you.
-- Show the scheme's verified eligibility criteria.
-- Clearly state which criteria the user satisfies and which criteria the user fails.
-- Use this exact format when explaining ineligibility:
+3. Term Loan (TL / TERM_LOAN):
+   - Authority: NSFDC | Type: Primary Term Financing
+   - Purpose: Medium to large enterprises, commercial transport, service sector, manufacturing, agriculture
+   - Project Cost Range: Above ₹1,40,000 up to ₹50,00,000
+   - Maximum Loan: Up to ₹45,00,000 (up to 90% of project cost)
+   - Interest Rates: Concessional tiered rates:
+     * Loans up to ₹5.00 Lakh: 6% p.a. for women, 7% p.a. for others
+     * Loans up to ₹50.00 Lakh: 8% p.a.
+   - Repayment Tenure: 5 to 10 years | Moratorium: 6 to 12 months
+   - Implementation Route: State Channelizing Agencies (SCAs) / Scheduled Commercial Banks
 
-Scheme eligibility:
-✓ Category requirement (satisfied/failed)
-✓ Income requirement (satisfied/failed)
-✓ Project-cost requirement (satisfied/failed)
+4. Udyam Nidhi Yojana (UNY):
+   - Authority: NSFDC | Type: Primary Entrepreneurship Support
+   - Purpose: Small/micro activities and scalable self-employment ventures
+   - Maximum Project Cost: ₹5,00,000 | Maximum Loan: ₹4,50,000 (90% coverage)
+   - Interest Rate: 13%–15% p.a. | Repayment Tenure: 3 to 5 years
+   - Implementation Route: Cooperative Societies, Cooperative Banks, Small Finance Banks (SFBs)
 
-Your profile:
-✓ Category: [value] (satisfied/failed)
-✓ Income: [value] (satisfied/failed)
-✓ Project cost: [value] (satisfied/failed)
+5. Educational Loan Scheme (ELS):
+   - Authority: NSFDC | Type: Higher Education Financing
+   - Purpose: Full-time professional or technical education (Engineering, Medicine, MBA, Law, etc.) in recognized institutes
+   - Loan Limits: Up to ₹20,00,000 in India; Up to ₹40,00,000 Abroad (covers up to 90% of expenses)
+   - Interest Rate: 6.5% p.a. | Special Rebate: 0.5% interest concession for women (effective 6.0% p.a.)
+   - Repayment Tenure: Up to 10 years | Moratorium: Full course duration + 6 months
+   - Implementation Route: State Channelizing Agencies (SCAs) / Banks
 
-Why it was not recommended:
-[exact rule-engine failure reason]
+6. VISVAS Yojana (Secondary Connected Scheme):
+   - Full Name: Vanchit Ikai Samooh aur Vargon ki Aarthik Sahayata Yojana
+   - Benefit: 5% direct annual interest subvention credited directly into beneficiary accounts for standard repayment under NSFDC/NBCFDC loans.
 
-- Never reinterpret the rule or invent a workaround.
-- Never say "Try this anyway, you may still qualify."
+7. Alternative / National Schemes (Out-of-Scope):
+   - PMEGP: KVIC subsidy (15%-35%) for projects up to ₹50L manufacturing / ₹20L service.
+   - PM MUDRA Yojana: Loans up to ₹10L (Shishu, Kishore, Tarun) via commercial banks.
+   - CGTMSE: Collateral-free credit guarantee for micro and small enterprises up to ₹5 Crore.
 
-OUT-OF-SCOPE SCHEMES:
-- If no suitable Scheme Saathi-supported scheme exists but a verified eligible out-of-scope scheme exists, show ONLY: official scheme name + verified official website.
-- Clearly label: "Outside Scheme Saathi Scope"
-- Do NOT show: score, benefits, documents, steps, EMI, partner info for out-of-scope schemes.
-- Never invent an out-of-scope scheme or URL.
+GENERAL ELIGIBILITY CRITERIA:
+- Target Community: Scheduled Caste (SC) applicants holding a valid government caste certificate.
+- Annual Family Income: Must not exceed ₹5,00,000 (₹5 Lakh) p.a. (revised policy effective Jan 7, 2026).
+- Age: 18 years and above.
+- Credit Standing: No defaults or non-performing loans with any financial institution.
 
-APPLICATION PROCESS:
-- For eligible Scheme Saathi-supported schemes, when user asks "How do I apply?", "What should I do next?", "Complete process batao", explain the COMPLETE start-to-end application process using verified data: official website/portal, where to start, registration/login if verified, form steps, required information, verified documents, submission, verification/scrutiny if verified, Channel Partner route where applicable, next step.
-- Never invent steps, documents, processing times, or guarantees.
-- If the COMPLETE application process is NOT verified in the available Scheme Saathi data, clearly state that, then use the deterministic Channel Partner Locator output to recommend a verified nearby eligible partner with: partner name, type, complete address, contact number, distance, official website/contact link if verified.
-- The AI must NEVER invent or independently choose a partner.
+REQUIRED DOCUMENTS CHECKLIST:
+- Valid Caste Certificate from competent state revenue authority
+- Income Certificate / Proof of annual family income <= ₹5,00,000
+- Identity & Address Proof: Aadhaar Card, Voter ID, PAN Card, Ration Card
+- Passport-size photographs
+- Business project report, machinery quotations, or activity estimates (for business/term loans)
+- Admission letter, fee schedule, and qualifying marksheets (for Educational Loan Scheme)
+- Bank passbook copy with account number and IFSC
 
-FINANCIAL CALCULATOR:
-- You must NEVER calculate EMI, interest, or repayment yourself.
-- Only explain deterministic calculator output supplied to you.
-- If calculator output is unavailable, say "The EMI calculation is temporarily unavailable. Please use the Financial Calculator."
+CHANNEL PARTNERS & APPLICATION ROUTE:
+- Applications are submitted and processed through authorized State Channelizing Agencies (SCAs), Regional Rural Banks (RRBs), participating Public Sector Banks, or authorized NBFC-MFIs.
+- NSFDC sanctions funds and refinances partner institutions.
+- Direct walk-in to NSFDC HQ is not required; applicants apply through the nearest Channel Agency in their state/district.
 
-CHANNEL PARTNER:
-- You must NEVER invent Channel Partners, locations, distances, or health status.
-- Only explain deterministic locator output supplied to you.
-- If no verified partner is found, say "No verified eligible Channel Partner was found in the available Scheme Saathi data for your location and requirement."
+GUIDELINES FOR ANSWERING:
+- Answer ANY question the user asks about Scheme Saathi, government schemes, eligibility, loans, interest, EMIs, documents, application process, or channel partners.
+- Be warm, encouraging, respectful, and authoritative.
+- Structure responses clearly using bold text for scheme names, interest rates, and loan figures, bullet points for lists, and numbered steps for processes.
+- If the user asks general questions without having run the scheme finder (e.g., "Tell me about eligibility schemes", "What schemes do you have?", "How much loan can I get for a shop?"):
+  * Provide a clear, comprehensive, and helpful answer using the verified scheme details above.
+  * Suggest they use "Find My Schemes" to evaluate their exact eligibility through the platform's automated rule engine, or "Explore Schemes" to browse all options.
+- If user profile and rule engine results ARE provided in context:
+  * Prioritize the user's specific eligible schemes.
+  * Rank them based on the user's personal profile (purpose, project cost, loan required, interest rate, gender).
+  * Output the ranking JSON block at the very end.
+- If ineligibility details are present in context:
+  * Explain the exact criteria from the rule engine transparently without false promises.
+- Financial numbers: Always use exact verified figures (e.g. ₹1.25 Lakh, 6.5%, ₹5 Lakh income limit).
+- Multilingual: Match the user's input language (English, Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Gujarati, etc.) naturally while preserving scheme names and numbers.
+- For completely unrelated topics (movies, jokes, gaming, general coding, sports, weather), politely remind the user that you specialize exclusively in Scheme Saathi and government schemes.
+- Always include the standard rule-engine authority disclaimer at the end of structured recommendations."""
 
-OFFICIAL INFORMATION:
-- NEVER hallucinate or invent government websites, scheme URLs, application portal URLs, ministry links, contact numbers, email addresses, or partner websites.
-- URLs may be shown ONLY from trusted verified scheme/partner metadata supplied to you.
-- If no verified URL exists, say "Official website link is not verified in the available Scheme Saathi data."
-- Never guess URLs.
-
-MULTILINGUAL:
-- Respond in the user's preferred or detected language.
-- Preserve exact financial figures (rupee amounts, percentages, EMI values).
-- Preserve official scheme names in their verified form.
-- Preserve official URLs exactly.
-- Do not translate or alter numbers, rates, limits, or URLs.
-- Support Hinglish and mixed Indian-language + English input naturally.
-- Language MUST NEVER affect eligibility, scheme ranking, EMI, or partner matching.
-- Do NOT infer location from language.
-
-DATA HIERARCHY:
-1. Verified project/database scheme data
-2. Deterministic rule-engine output
-3. Deterministic calculator output
-4. Deterministic partner-locator output
-5. Other explicitly approved verified sources
-
-Never use unsupported model knowledge as verified Scheme Saathi data.
-When information is unavailable, say so clearly.
-
-RESPONSE FORMAT:
-- Be clear, polite, and practical.
-- Use structured information where helpful.
-- Distinguish between verified facts and AI analysis.
-- Always include the disclaimer about rule-engine authority."""
 
 
 def _build_user_context(
@@ -233,8 +222,20 @@ def _build_user_context(
             if scheme.get("channel_partner_fallback_needed"):
                 parts.append("  NOTE: Complete application process is NOT verified. If user asks how to apply, recommend the Channel Partner Locator and use deterministic partner data.")
         parts.append("")
+    else:
+        parts.append("SCHEME SAATHI MASTER SCHEMES DIRECTORY:")
+        parts.append("- Micro Finance Scheme (MFS): Small income-generating activities / petty business. Project cost up to ₹1,40,000, loan up to ₹1,25,000 (90% finance). Concessional 6.5% interest p.a., 3 years repayment with 3 months moratorium. 40% funds earmarked for women entrepreneurs. Channel: SCAs/Channel Partners.")
+        parts.append("- Aajeevika Micro-Finance Yojana (AMY): Micro-finance support for small business through NBFC-MFIs. Project cost up to ₹1,40,000, loan up to ₹1,25,000. 15% interest p.a., 3 years tenure, 3 months moratorium.")
+        parts.append("- Term Loan (TL / TERM_LOAN): Medium to large income-generating projects, transport, services, manufacturing. Project cost from ₹1,40,000 up to ₹50,00,000, loan up to ₹45,00,000 (90% coverage). Tiered interest: up to ₹5L: 6% for women, 7% for others; up to ₹50L: 8% p.a. Tenure 5-10 years, moratorium 6-12 months. Channel: SCAs/Banks.")
+        parts.append("- Udyam Nidhi Yojana (UNY): Micro/small entrepreneurship. Project cost up to ₹5,00,000, loan up to ₹4,50,000. 13%–15% interest p.a., 3 to 5 years tenure. Channel: Cooperative Banks/Societies/SFBs.")
+        parts.append("- Educational Loan Scheme (ELS): Full-time professional and technical higher education. Loans up to ₹20,00,000 in India, up to ₹40,00,000 Abroad (up to 90% expenses). 6.5% interest p.a. (0.5% rebate for women = 6.0% p.a.). Repayment up to 10 years, moratorium course + 6 months. Channel: SCAs/Banks.")
+        parts.append("- VISVAS Yojana (Secondary Scheme): 5% direct interest subvention for eligible prompt-repaying borrowers under NSFDC.")
+        parts.append("- Alternative General Schemes (Out of Scope): PMEGP (15%-35% subsidy up to ₹50L manufacturing / ₹20L services), PM MUDRA (up to ₹10L), CGTMSE (credit guarantee).")
+        parts.append("- General Eligibility: Scheduled Caste (SC) with valid caste certificate, annual family income <= ₹5,00,000, age 18+, no active bank defaults.")
+        parts.append("")
 
     if ineligible_schemes:
+
         parts.append("INELIGIBLE SCHEMES (from rule engine):")
         for scheme in ineligible_schemes:
             parts.append(f"- {scheme.get('scheme_name', scheme.get('name', 'Unknown'))} (ID: {scheme.get('scheme_id', scheme.get('id', 'Unknown'))})")
@@ -459,57 +460,64 @@ async def _call_gemini(
     system prompt is treated as a system-level instruction by the model
     rather than appearing as a user message.
     """
-    if not GEMINI_API_KEY:
+    api_key = _get_api_key()
+    if not api_key:
         logger.error("GEMINI_API_KEY environment variable is not set")
         return None
+
+    client = _get_genai_client()
+    if not client:
+        logger.error("Failed to initialize GenAI client")
+        return None
+
+    model_name = _get_model_name()
 
     full_user_content = (
         f"{context}\n\n"
         f"USER MESSAGE:\n{user_message}\n\n"
-        f"RESPOND IN THE USER'S LANGUAGE. Be clear, polite, and practical."
+        f"RESPOND IN THE USER'S LANGUAGE. Be clear, polite, structured, and professional. "
+        f"Format key scheme names, figures (amounts, interest rates, tenure), and requirements with markdown bold (**), bullet points, and numbered lists."
     )
 
     max_retries = 2
-    retry_delay = 0.5
+    retry_delay = 1.0
 
     for attempt in range(max_retries):
         try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
-
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=full_user_content)],
-                ),
-                config=types.GenerateContentConfig(
-                    system_instruction=types.Content(
-                        parts=[types.Part.from_text(text=system_prompt)],
+            def _generate_sync():
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=full_user_content)],
                     ),
-                    temperature=0.3,
-                    top_p=0.9,
-                    max_output_tokens=2048,
-                ),
-            )
+                    config=types.GenerateContentConfig(
+                        system_instruction=types.Content(
+                            parts=[types.Part.from_text(text=system_prompt)],
+                        ),
+                        temperature=0.3,
+                        top_p=0.9,
+                        max_output_tokens=2048,
+                    ),
+                )
 
-            if response.text:
+            response = await asyncio.to_thread(_generate_sync)
+
+            if response and response.text:
                 return response.text
 
-            logger.warning("Gemini returned empty response")
-            return None
+            logger.warning("Gemini model %s returned empty response", model_name)
 
         except Exception as e:
             error_str = str(e)
-            if attempt < max_retries - 1 and "503" in error_str:
-                logger.warning("Gemini API unavailable (attempt %d/%d), retrying...", attempt + 1, max_retries)
-                import asyncio
+            logger.warning("Gemini attempt %d failed: %s", attempt + 1, error_str)
+            if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay)
                 retry_delay *= 2
-                continue
-            logger.error("Gemini call failed: %s", error_str)
-            return None
 
     return None
+
+
 
 
 def _build_disclaimer() -> str:
@@ -802,7 +810,114 @@ def _extract_structured_data(
     return result
 
 
+def _build_knowledge_fallback(message: str, language_key: str) -> str:
+    """Smart knowledge-based fallback response if the LLM API is unavailable."""
+    msg_lower = message.lower()
+
+    if any(w in msg_lower for w in ["eligib", "criteria", "qualif", "paatr", "पात्रता", "income", "आय", "limit"]):
+        return (
+            "### Scheme Saathi Eligibility Criteria\n\n"
+            "To qualify for concessional financial schemes under Scheme Saathi (NSFDC):\n\n"
+            "- **Community**: Scheduled Caste (SC) with a valid state caste certificate\n"
+            "- **Annual Family Income**: Up to **₹5,00,000 (₹5 Lakh)** p.a. (revised by NSFDC from Jan 7, 2026)\n"
+            "- **Age**: 18 years and above\n"
+            "- **Credit Standing**: Clean financial discipline with no existing bank defaults\n\n"
+            "💡 *Tip: Use the **Find My Schemes** tool to check your exact personalized eligibility!*"
+        )
+    elif any(w in msg_lower for w in ["mfs", "micro finance", "microfinance", "small business", "chhota"]):
+        return (
+            "### Micro Finance Scheme (MFS)\n\n"
+            "- **Authority**: NSFDC (Ministry of Social Justice and Empowerment)\n"
+            "- **Purpose**: Small income-generating activities, petty shops, tailoring, handicrafts, tiny business\n"
+            "- **Project Cost Limit**: Up to **₹1,40,000**\n"
+            "- **Loan Amount**: Up to **₹1,25,000** (90% finance coverage)\n"
+            "- **Interest Rate**: **6.5% p.a.**\n"
+            "- **Repayment Tenure**: 3 years with a **3-month moratorium**\n"
+            "- **Women Benefit**: **40% of total funds** are specifically earmarked for women beneficiaries\n"
+            "- **How to Apply**: Through nearest State Channelizing Agency (SCA) or Channel Partner"
+        )
+    elif any(w in msg_lower for w in ["term loan", "termloan", "tl", "bada loan", "industry", "transport"]):
+        return (
+            "### Term Loan (TL)\n\n"
+            "- **Purpose**: Commercial ventures, transport vehicles, service sector, manufacturing, agriculture\n"
+            "- **Project Cost**: Above **₹1,40,000** up to **₹50,00,000**\n"
+            "- **Maximum Loan**: Up to **₹45,00,000** (up to 90% of project cost)\n"
+            "- **Interest Rates**:\n"
+            "  * Loans up to ₹5.00 Lakh: **6% p.a. for women**, **7% p.a. for others**\n"
+            "  * Loans up to ₹50.00 Lakh: **8% p.a.**\n"
+            "- **Repayment**: 5 to 10 years with a **6 to 12 months moratorium**\n"
+            "- **Implementation**: State Channelizing Agencies (SCAs) and Scheduled Commercial Banks"
+        )
+    elif any(w in msg_lower for w in ["educat", "els", "padhai", "study", "college", "foreign", "shiksha"]):
+        return (
+            "### Educational Loan Scheme (ELS)\n\n"
+            "- **Purpose**: Higher professional & technical degrees (Engineering, Medicine, Management, Law) in India or abroad\n"
+            "- **Loan Ceiling**: Up to **₹20,00,000 in India**; up to **₹40,00,000 Abroad** (covers up to 90% of course fee & living expenses)\n"
+            "- **Interest Rate**: **6.5% p.a.** (Women receive an additional **0.5% rebate = 6.0% p.a.**)\n"
+            "- **Repayment**: Up to 10 years; **Moratorium**: Full course duration + 6 months\n"
+            "- **Implementation**: SCAs and Banks"
+        )
+    elif any(w in msg_lower for w in ["women", "female", "mahila", "aurat", "ladies", "ladki"]):
+        return (
+            "### Concessions & Priority for Women in Scheme Saathi\n\n"
+            "Scheme Saathi prioritizes women entrepreneurs with special quotas and lower interest rates:\n\n"
+            "1. **Micro Finance Scheme (MFS)**: **40% of funds** are exclusively targeted for women entrepreneurs at **6.5% p.a.**\n"
+            "2. **Term Loan (TL)**: Special concessional **6% p.a. interest rate** (1% below standard rate) for loans up to ₹5.00 Lakh\n"
+            "3. **Educational Loan Scheme (ELS)**: **0.5% interest rebate**, reducing the rate to **6.0% p.a.** for female students\n\n"
+            "You can use **Find My Schemes** to discover all schemes tailored for your profile!"
+        )
+    elif any(w in msg_lower for w in ["doc", "paper", "dastavej", "certificate", "praman", "kagaz"]):
+        return (
+            "### Required Documents Checklist\n\n"
+            "To apply for Scheme Saathi schemes, please have these documents ready:\n\n"
+            "1. **Valid Caste Certificate** issued by a competent revenue authority (Scheduled Caste)\n"
+            "2. **Income Certificate / Proof** demonstrating annual family income <= ₹5,00,000\n"
+            "3. **Identity & Address Proof** (Aadhaar Card, Voter ID, PAN Card, Ration Card)\n"
+            "4. **Passport-size Photographs**\n"
+            "5. **Project Report / Quotations / Cost Estimates** (for business and term loans)\n"
+            "6. **Admission Letter & Fee Structure** (for Educational Loan Scheme)\n"
+            "7. **Bank Passbook Copy** with account number and IFSC code"
+        )
+    elif any(w in msg_lower for w in ["emi", "calculator", "kist", "calculate", "monthly"]):
+        return (
+            "### Financial & EMI Calculator\n\n"
+            "Scheme Saathi has a built-in **Financial & EMI Calculator**!\n\n"
+            "- Calculate your exact monthly EMI based on verified NSFDC interest rates (6% to 8% p.a.)\n"
+            "- Factor in moratorium relief periods (3 months for MFS, 6–12 months for Term Loans)\n"
+            "- View total interest payable and an amortized repayment timeline\n\n"
+            "Navigate to the **EMI Calculator** from the top menu or dashboard to test your loan numbers."
+        )
+    elif any(w in msg_lower for w in ["partner", "locator", "bank", "branch", "sca", "kaha", "agency"]):
+        return (
+            "### Channel Partners & Application Centers\n\n"
+            "Scheme Saathi schemes are delivered through verified **Channel Partners**:\n\n"
+            "- **State Channelizing Agencies (SCAs)** in your state\n"
+            "- **Participating Scheduled Commercial Banks** and Regional Rural Banks (RRBs)\n"
+            "- **Authorized NBFC-MFIs** (for micro-finance schemes like AMY)\n\n"
+            "Use the **Channel Partner Locator** on the platform to locate the nearest office or branch in your district!"
+        )
+    elif any(w in msg_lower for w in ["visvas", "subvention"]):
+        return (
+            "### VISVAS Yojana (Interest Subvention Scheme)\n\n"
+            "- **Full Title**: Vanchit Ikai Samooh aur Vargon ki Aarthik Sahayata Yojana\n"
+            "- **Benefit**: **5% direct annual interest subvention** credited directly into beneficiary bank accounts\n"
+            "- **Eligibility**: SC/OBC Self-Help Groups (SHGs) and individuals with standard, active loan accounts under NSFDC or NBCFDC schemes"
+        )
+    else:
+        return (
+            "### Welcome to Scheme Saathi AI Assistant!\n\n"
+            "I can assist you with all government concessional schemes under the **National Scheduled Castes Finance and Development Corporation (NSFDC)**, Ministry of Social Justice and Empowerment:\n\n"
+            "- **Micro Finance Scheme (MFS)**: Loans up to ₹1.25 Lakh at 6.5% interest (40% earmarked for women)\n"
+            "- **Term Loan (TL)**: Loans up to ₹45 Lakh (projects up to ₹50 Lakh) at 6%–8% interest\n"
+            "- **Educational Loan (ELS)**: Up to ₹20L in India / ₹40L abroad at 6.0%–6.5% interest\n"
+            "- **Udyam Nidhi Yojana (UNY)**: Entrepreneurship loans up to ₹4.5 Lakh\n"
+            "- **VISVAS Yojana**: 5% direct interest subvention for timely repayment\n\n"
+            "Feel free to ask any question about eligibility, loan amounts, documents, or click **Find My Schemes** to check your personalized match!"
+        )
+
+
 async def get_ai_response(
+
     message: str,
     language: str | None = None,
     user_profile: dict[str, Any] | None = None,
@@ -949,32 +1064,9 @@ async def get_ai_response(
     reply = await _call_gemini(SYSTEM_PROMPT, message, context)
 
     if reply is None:
-        # Same-language error fallback
-        # Use the user's selected/detected language; never force English.
-        _fallback_key = language_used if language_used in _FALLBACK_MESSAGES else None
-        if _fallback_key is None and language and is_supported_language(language):
-            _fallback_key = language if language in _FALLBACK_MESSAGES else None
-        if _fallback_key is None:
-            _fallback_key = "en"
+        # Smart domain-aware fallback if Gemini is temporarily unavailable
+        reply = _build_knowledge_fallback(message, language_used)
 
-        if not GEMINI_API_KEY:
-            reply = _FALLBACK_MESSAGES.get(
-                _fallback_key,
-                (
-                    "AI Assistant is temporarily unavailable. "
-                    "The GEMINI_API_KEY is not configured. "
-                    "Your rule-based scheme results are still available."
-                ),
-            )
-        else:
-            reply = _FALLBACK_MESSAGES.get(
-                _fallback_key,
-                (
-                    "AI Assistant is temporarily unavailable. "
-                    "Please try again later or use the Financial Calculator and Partner Locator directly. "
-                    "Your scheme eligibility is always determined by the backend rule engine, not by the AI."
-                ),
-            )
 
     # Parse AI ranking before stripping markers
     structured = _extract_structured_data(

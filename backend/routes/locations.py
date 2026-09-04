@@ -9,10 +9,15 @@ router = APIRouter(
 )
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "india_locations.json"
+_LOCATIONS_CACHE = None
 
 def load_locations():
+    global _LOCATIONS_CACHE
+    if _LOCATIONS_CACHE is not None:
+        return _LOCATIONS_CACHE
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        _LOCATIONS_CACHE = json.load(f)
+    return _LOCATIONS_CACHE
 
 @router.get("/states")
 def get_states():

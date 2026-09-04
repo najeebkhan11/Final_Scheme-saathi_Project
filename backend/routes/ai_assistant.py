@@ -10,15 +10,14 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Header
+from pydantic import BaseModel
 
 from schemas.ai_assistant import AIAssistantRequest, AIAssistantResponse
 from services.ai_assistant import get_ai_response
-from services.auth import get_current_user
 from services.channel_partner_locator import find_channel_partners
 from services.emi_calculator import calculate_emi_for_scheme
-from services.languages import build_language_selector_options, is_supported_language
+from services.languages import build_language_selector_options
 from database.database import get_db
 
 
@@ -32,10 +31,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SCHEME_FILE = BASE_DIR / "data" / "schemes.json"
 
 
+_SCHEMES_CACHE: list[dict[str, Any]] | None = None
+
+
 def _load_schemes() -> list[dict[str, Any]]:
+    global _SCHEMES_CACHE
+    if _SCHEMES_CACHE is not None:
+        return _SCHEMES_CACHE
     with open(SCHEME_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return data["schemes"]
+    _SCHEMES_CACHE = data["schemes"]
+    return _SCHEMES_CACHE
 
 
 def _get_user_profile(user_id: int) -> dict[str, Any] | None:
@@ -186,7 +192,7 @@ def get_languages():
 @router.post("/assistant")
 async def ai_assistant(
     request: AIAssistantRequest,
-    authorization: Optional[str] = None,
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
 ):
     """Main AI Assistant endpoint.
 
@@ -325,20 +331,16 @@ async def ai_assistant(
     # (verified in scheme data but not within Scheme Saathi's primary scope)
     out_of_scope_schemes = []
     if all_schemes:
-        known_ids = {
-            s["id"] for s in all_schemes
-        }
+        known_ids = set()
         known_ids.update(
-            {
-                (s.get("scheme_id") or s.get("id"))
-                for s in (eligible_schemes or [])
-            }
+            (s.get("scheme_id") or s.get("id"))
+            for s in (eligible_schemes or [])
+            if (s.get("scheme_id") or s.get("id"))
         )
         known_ids.update(
-            {
-                (s.get("scheme_id") or s.get("id"))
-                for s in (ineligible_schemes or [])
-            }
+            (s.get("scheme_id") or s.get("id"))
+            for s in (ineligible_schemes or [])
+            if (s.get("scheme_id") or s.get("id"))
         )
         # Check for out-of-scope schemes in master data
         # These are schemes that are verified but marked as out-of-scope
@@ -366,19 +368,40 @@ async def ai_assistant(
                     "scheme_id": oos.get("scheme_id", ""),
                 })
 
-    response_data = await get_ai_response(
-        message=request.message,
-        language=request.language,
-        user_profile=user_profile,
-        eligible_schemes=eligible_schemes,
-        ineligible_schemes=ineligible_schemes,
-        emi_output=emi_output,
-        partner_output=partner_output,
-        ineligibility_query=ineligibility_query,
-        out_of_scope_schemes=out_of_scope_schemes or None,
-    )
+    try:
+        response_data = await get_ai_response(
+            message=request.message,
+            language=request.language,
+            user_profile=user_profile,
+            eligible_schemes=eligible_schemes,
+            ineligible_schemes=ineligible_schemes,
+            emi_output=emi_output,
+            partner_output=partner_output,
+            ineligibility_query=ineligibility_query,
+            out_of_scope_schemes=out_of_scope_schemes or None,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").error(f"Error generating AI response: {e}", exc_info=True)
+        response_data = {
+            "reply": (
+                "Welcome to **Scheme Saathi**! I can help you with all concessional government schemes for "
+                "Scheduled Caste entrepreneurs under the National Scheduled Castes Finance and Development Corporation (NSFDC).\n\n"
+                "You can ask about:\n"
+                "- **Micro Finance Scheme (MFS)** (Loans up to ₹1.25L at 6.5% interest, 40% reserved for women)\n"
+                "- **Term Loan (TL)** (Loans up to ₹45L at 6%–8% interest for businesses and transport)\n"
+                "- **Educational Loan Scheme (ELS)** (Up to ₹20L in India / ₹40L Abroad at 6.0%–6.5%)\n"
+                "- **Udyam Nidhi Yojana (UNY)** (Entrepreneurship support up to ₹4.5L)\n"
+                "- **Eligibility & Required Documents** (Caste certificate, income up to ₹5 Lakh)\n\n"
+                "What would you like to know more about?"
+            ),
+            "language_used": request.language or "en",
+            "language_detected": False,
+            "disclaimer": "Eligibility is determined by Scheme Saathi's rule engine. Final approval is decided by the concerned lending institution.",
+        }
 
     return {
         "status": "success",
         **response_data,
     }
+

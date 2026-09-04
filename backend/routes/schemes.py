@@ -16,17 +16,21 @@ router = APIRouter(
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SCHEME_FILE = BASE_DIR / "data" / "schemes.json"
+_SCHEMES_CACHE = None
 
 
 def load_schemes() -> list[dict[str, Any]]:
+    global _SCHEMES_CACHE
+    if _SCHEMES_CACHE is not None:
+        return _SCHEMES_CACHE
     with open(
         SCHEME_FILE,
         "r",
         encoding="utf-8",
     ) as file:
         data = json.load(file)
-
-    return data["schemes"]
+    _SCHEMES_CACHE = data["schemes"]
+    return _SCHEMES_CACHE
 
 
 class SchemeMatchRequest(BaseModel):
@@ -43,6 +47,8 @@ class SchemeMatchRequest(BaseModel):
         ge=0,
     )
     education_level: str | None = None
+    state: str | None = None
+    district: str | None = None
 
 
 @router.get("/")
@@ -131,8 +137,46 @@ def match_schemes(
         if result["eligible"]
     ]
 
+    # Rank eligible primary schemes by match score with context priority boosting
+    def get_sort_key(s):
+        score = float(s.get("match_score", 0))
+        # Educational scheme boost if requirement is education
+        if str(user_data.get("purpose", "")).lower() == "education" and s.get("scheme_id") == "ELS":
+            score += 25
+        # Lower interest rate gives an affordability advantage to beneficiaries
+        rate = s.get("financial_terms", {}).get("beneficiary_interest_rate_percent")
+        if rate is not None:
+            score += max(0.0, 16.0 - float(rate))
+        return score
+
+    eligible_primary.sort(key=get_sort_key, reverse=True)
+
+    best_scheme = eligible_primary[0] if eligible_primary else None
+    overall_match_score = best_scheme.get("match_score", 0) if best_scheme else 0
+
+    # Nearest partner lookup if state/district provided
+    nearest_partner = None
+    state = user_data.get("state")
+    district = user_data.get("district")
+    if state:
+        try:
+            from services.channel_partner_locator import find_channel_partners
+            partner_res = find_channel_partners(
+                state=state,
+                district=district,
+                scheme_id=best_scheme.get("scheme_id") if best_scheme else None,
+                max_results=1,
+            )
+            if partner_res.get("partners"):
+                nearest_partner = partner_res["partners"][0]
+        except Exception as e:
+            print(f"Error fetching nearest partner: {e}")
+
     return {
         "status": "success",
+        "match_score": overall_match_score,
+        "best_scheme": best_scheme,
+        "nearest_partner": nearest_partner,
         "primary": {
             "eligible": eligible_primary,
             "ineligible": [

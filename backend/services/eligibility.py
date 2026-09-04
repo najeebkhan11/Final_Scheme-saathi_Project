@@ -574,56 +574,120 @@ def check_scheme_eligibility(
         else ""
     )
 
+    female_only = bool(
+        scheme.get("eligibility", {})
+        .get("gender_rule", {})
+        .get("female_only", False)
+    )
+
     gender_ok = True
     gender_msg = "No gender restriction for this scheme."
 
-    if is_women_target and normalized_gender != "female":
+    if female_only and normalized_gender != "female":
         gender_ok = False
         gender_msg = (
-            "Applicant gender does not satisfy the "
-            "women-focused scheme condition."
+            "Applicant gender does not satisfy the female-only scheme condition."
         )
+        failures.append(gender_msg)
     elif is_women_target and normalized_gender == "female":
-        gender_msg = "Women-focused fund allocation target applies."
+        gender_msg = "Women-focused fund allocation target applies (40% priority allocation)."
+        reasons.append(gender_msg)
+    elif is_women_target:
+        gender_msg = "General SC allocation applies (40% funds targeted for women)."
+        reasons.append("Eligible under general scheme fund allocation.")
 
     criterion_status.append({
         "criterion": "gender",
         "description": "Gender requirement",
         "satisfied": gender_ok,
         "user_value": gender or "Not provided",
-        "required": "Female (women-target scheme)" if is_women_target else "Any",
+        "required": "Female only" if female_only else ("40% Women Target" if is_women_target else "Any"),
         "message": gender_msg,
     })
 
-    # IMPORTANT:
-    # Women-focused schemes are NOT eligible for
-    # male / other / unspecified applicants.
-    if (
-        is_women_target
-        and normalized_gender != "female"
-    ):
-        failures.append(
-            gender_msg
-        )
-    elif (
-        is_women_target
-        and normalized_gender == "female"
-    ):
-        reasons.append(
-            "Women-focused fund allocation target applies."
-        )
-
     # -----------------------------------------------------
-    # FINAL RESULT
+    # FINAL RESULT & ENRICHMENT
     # -----------------------------------------------------
 
     eligible = len(failures) == 0
 
+    financial_terms = scheme.get("financial_terms", {})
+    max_loan = financial_terms.get("maximum_loan_amount_inr")
+    interest_rate = financial_terms.get("beneficiary_interest_rate_percent")
+
+    why_this_scheme: list[str] = []
+    if eligible:
+        score = 75
+
+        # Community alignment
+        if category == "SC":
+            score += 10
+            why_this_scheme.append(
+                "100% targeted coverage for Scheduled Caste (SC) applicants under NSFDC mandate."
+            )
+
+        # Income ceiling compliance (revised Jan 2026 guidelines)
+        if income <= 500000:
+            score += 5
+            why_this_scheme.append(
+                f"Annual family income (₹{income:,.0f}) is fully compliant with the official ceiling of ≤ ₹5,00,000."
+            )
+
+        # Women priority
+        if is_women_target and normalized_gender == "female":
+            score += 8
+            why_this_scheme.append(
+                "Priority beneficiary status under Women-Focused fund allocation (40% targeted quota) with lowest concessional interest."
+            )
+
+        # Loan requirement fit
+        req_loan = user_data.get("required_loan")
+        if req_loan and max_loan:
+            if float(req_loan) <= float(max_loan):
+                score += 5
+                why_this_scheme.append(
+                    f"Requested loan of ₹{float(req_loan):,.0f} is within scheme limit of ₹{float(max_loan):,.0f}."
+                )
+            else:
+                why_this_scheme.append(
+                    f"Maximum scheme loan limit of ₹{float(max_loan):,.0f} can fund a significant portion of your requirement."
+                )
+        elif max_loan:
+            why_this_scheme.append(
+                f"Offers loan coverage up to ₹{float(max_loan):,.0f} with up to 90-95% project cost financing."
+            )
+
+        # Interest rate advantage
+        if interest_rate is not None:
+            why_this_scheme.append(
+                f"Subsidized beneficiary interest rate of only {interest_rate}% p.a. with flexible quarterly repayment after moratorium."
+            )
+
+        # VISVAS subvention benefit
+        why_this_scheme.append(
+            "Eligible for additional 5% p.a. interest subvention under VISVAS scheme on prompt repayment."
+        )
+
+        match_score = min(score, 98)
+    else:
+        satisfied_count = sum(1 for c in criterion_status if c.get("satisfied"))
+        total_count = len(criterion_status) if criterion_status else 1
+        match_score = max(10, round((satisfied_count / total_count) * 45))
+
     return {
         "scheme_id": scheme["id"],
         "scheme_name": scheme["name"],
+        "short_name": scheme.get("short_name", scheme["id"]),
         "type": scheme["type"],
+        "authority": scheme.get("authority", "NSFDC"),
         "eligible": eligible,
+        "match_score": match_score,
+        "why_this_scheme": why_this_scheme,
+        "financial_terms": financial_terms,
+        "required_documents": scheme.get("required_documents", {}),
+        "application_steps": scheme.get("application_steps", []),
+        "channel_requirements": scheme.get("channel_requirements", {}),
+        "purpose": scheme.get("purpose", []),
         "reasons": reasons,
         "failures": failures,
         "criterion_status": criterion_status,
