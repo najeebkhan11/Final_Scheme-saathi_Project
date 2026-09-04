@@ -9,6 +9,8 @@ class AIAssistantRequest(BaseModel):
     emi_output: Optional[dict] = Field(default=None)
     partner_output: Optional[dict] = Field(default=None)
     ineligibility_query: Optional[dict] = Field(default=None)
+    coordinates: Optional[dict] = Field(default=None)
+    location: Optional[dict] = Field(default=None)
 
 
 class AIAssistantResponse(BaseModel):

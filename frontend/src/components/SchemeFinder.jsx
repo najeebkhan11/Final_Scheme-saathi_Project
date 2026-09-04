@@ -66,15 +66,116 @@ export default function SchemeFinder({
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const updateField = (field, value) => {
     setFormData((current) => ({
       ...current,
       [field]: value,
     }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+    if (error) {
+      setError("");
+    }
+  };
+
+  const validateStep = (stepNumber) => {
+    const errors = {};
+
+    if (stepNumber === 1) {
+      if (!formData.fullName || !formData.fullName.trim()) {
+        errors.fullName = "Please enter your full name.";
+      }
+      const ageNum = Number(formData.age);
+      if (!formData.age || isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
+        errors.age = "Please enter a valid age (between 18 and 100).";
+      }
+      if (!formData.gender) {
+        errors.gender = "Please select your gender.";
+      }
+      if (!formData.category) {
+        errors.category = "Please select your category.";
+      }
+      if (!formData.state) {
+        errors.state = "Please select your state.";
+      }
+      if (!formData.district) {
+        errors.district = "Please select your district.";
+      }
+      if (formData.annualIncome === "" || formData.annualIncome === null || formData.annualIncome === undefined || Number(formData.annualIncome) < 0) {
+        errors.annualIncome = "Please enter your annual family income.";
+      }
+    } else if (stepNumber === 2) {
+      if (!formData.purpose) {
+        errors.purpose = "Please select what you need financial support for.";
+      }
+    } else if (stepNumber === 3) {
+      if (formData.purpose === "education") {
+        if (!formData.educationLevel) {
+          errors.educationLevel = "Please select your education level.";
+        }
+        if (!formData.course || !formData.course.trim()) {
+          errors.course = "Please enter your course name.";
+        }
+        if (!formData.institution || !formData.institution.trim()) {
+          errors.institution = "Please enter your institution name.";
+        }
+        const courseFeeNum = Number(formData.courseFee);
+        if (!formData.courseFee || isNaN(courseFeeNum) || courseFeeNum <= 0) {
+          errors.courseFee = "Please enter a valid course fee.";
+        }
+      } else {
+        if (!formData.businessType) {
+          errors.businessType = "Please select your project / business type.";
+        }
+        if (!formData.projectStage) {
+          errors.projectStage = "Please select project stage.";
+        }
+        const projectCostNum = Number(formData.projectCost);
+        if (!formData.projectCost || isNaN(projectCostNum) || projectCostNum <= 0) {
+          errors.projectCost = "Please enter estimated project cost.";
+        }
+        const reqLoanNum = Number(formData.requiredLoan);
+        if (!formData.requiredLoan || isNaN(reqLoanNum) || reqLoanNum <= 0) {
+          errors.requiredLoan = "Please enter required loan amount.";
+        } else if (projectCostNum && reqLoanNum > projectCostNum) {
+          errors.requiredLoan = "Required loan cannot exceed estimated project cost.";
+        }
+      }
+    } else if (stepNumber === 4) {
+      if (formData.ownContribution === "" || formData.ownContribution === null || formData.ownContribution === undefined || Number(formData.ownContribution) < 0) {
+        errors.ownContribution = "Please enter your own contribution (enter 0 if none).";
+      }
+      if (!formData.existingLoan) {
+        errors.existingLoan = "Please select whether you have an existing loan.";
+      } else if (formData.existingLoan === "yes") {
+        if (formData.outstandingAmount === "" || formData.outstandingAmount === null || formData.outstandingAmount === undefined || Number(formData.outstandingAmount) < 0) {
+          errors.outstandingAmount = "Please enter outstanding loan amount.";
+        }
+        if (!formData.overdue) {
+          errors.overdue = "Please specify if you have any existing overdue.";
+        }
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const nextStep = () => {
+    const isValid = validateStep(step);
+    if (!isValid) {
+      setError("Please fill in all required fields accurately before continuing.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setError("");
     if (step < 5) {
       setStep((current) => current + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -82,6 +183,7 @@ export default function SchemeFinder({
   };
 
   const previousStep = () => {
+    setError("");
     if (step > 1) {
       setStep((current) => current - 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -350,11 +452,19 @@ export default function SchemeFinder({
       <main className="mx-auto max-w-[1000px] px-6 py-10 pb-20">
         <div className="rounded-2xl border border-[#d9e2e9] bg-white p-6 shadow-[0_12px_35px_rgba(46,75,98,0.08)] md:p-9">
           {step === 1 && (
-            <StepOne formData={formData} updateField={updateField} />
+            <StepOne
+              formData={formData}
+              updateField={updateField}
+              errors={fieldErrors}
+            />
           )}
 
           {step === 2 && (
-            <StepTwo formData={formData} updateField={updateField} />
+            <StepTwo
+              formData={formData}
+              updateField={updateField}
+              errors={fieldErrors}
+            />
           )}
 
           {step === 3 && (
@@ -363,11 +473,16 @@ export default function SchemeFinder({
               updateField={updateField}
               isBusiness={isBusiness}
               isEducation={isEducation}
+              errors={fieldErrors}
             />
           )}
 
           {step === 4 && (
-            <StepFour formData={formData} updateField={updateField} />
+            <StepFour
+              formData={formData}
+              updateField={updateField}
+              errors={fieldErrors}
+            />
           )}
 
           {step === 5 && <StepFive formData={formData} />}
@@ -441,7 +556,7 @@ export default function SchemeFinder({
   );
 }
 
-function StepOne({ formData, updateField }) {
+function StepOne({ formData, updateField, errors = {} }) {
   const [statesList, setStatesList] = useState([]);
   const [districtsList, setDistrictsList] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -523,6 +638,8 @@ function StepOne({ formData, updateField }) {
           placeholder="Enter your full name"
           value={formData.fullName}
           onChange={(value) => updateField("fullName", value)}
+          required
+          error={errors.fullName}
         />
 
         <TextField
@@ -531,12 +648,16 @@ function StepOne({ formData, updateField }) {
           type="number"
           value={formData.age}
           onChange={(value) => updateField("age", value)}
+          required
+          error={errors.age}
         />
 
         <SelectField
           label="Gender"
           value={formData.gender}
           onChange={(value) => updateField("gender", value)}
+          required
+          error={errors.gender}
           options={[
             { value: "female", label: "Female" },
             { value: "male", label: "Male" },
@@ -550,6 +671,8 @@ function StepOne({ formData, updateField }) {
           helper="Your category will be checked against each scheme's actual eligibility rules."
           value={formData.category}
           onChange={(value) => updateField("category", value)}
+          required
+          error={errors.category}
           options={[
             { value: "SC", label: "Scheduled Caste (SC)" },
             { value: "ST", label: "Scheduled Tribe (ST)" },
@@ -564,6 +687,8 @@ function StepOne({ formData, updateField }) {
           label="State"
           value={formData.state}
           onChange={handleStateChange}
+          required
+          error={errors.state}
           options={
             locationLoading
               ? []
@@ -582,6 +707,8 @@ function StepOne({ formData, updateField }) {
           label="District"
           value={formData.district}
           onChange={(value) => updateField("district", value)}
+          required
+          error={errors.district}
           options={
             !formData.state
               ? []
@@ -598,6 +725,8 @@ function StepOne({ formData, updateField }) {
           placeholder="e.g. 320000"
           value={formData.annualIncome}
           onChange={(value) => updateField("annualIncome", value)}
+          required
+          error={errors.annualIncome}
         />
       </div>
 
@@ -610,7 +739,7 @@ function StepOne({ formData, updateField }) {
   );
 }
 
-function StepTwo({ formData, updateField }) {
+function StepTwo({ formData, updateField, errors = {} }) {
   const purposes = [
     {
       value: "new_business",
@@ -652,6 +781,13 @@ function StepTwo({ formData, updateField }) {
         description="Choose the option that most closely matches your current financial requirement."
       />
 
+      {errors.purpose && (
+        <div className="mt-5 flex items-center gap-2.5 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs font-semibold text-red-600">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{errors.purpose}</span>
+        </div>
+      )}
+
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {purposes.map((purpose) => {
           const selected = formData.purpose === purpose.value;
@@ -665,6 +801,8 @@ function StepTwo({ formData, updateField }) {
                 "group relative flex items-start gap-4 rounded-xl border-2 p-5 text-left transition",
                 selected
                   ? "border-[#1769a8] bg-[#eef7fb] shadow-sm"
+                  : errors.purpose
+                  ? "border-red-300 bg-red-50/10 hover:border-red-400"
                   : "border-[#dce4ea] bg-white hover:border-[#a9c8da] hover:bg-[#f8fbfd]",
               ].join(" ")}
             >
@@ -704,7 +842,7 @@ function StepTwo({ formData, updateField }) {
   );
 }
 
-function StepThree({ formData, updateField, isBusiness, isEducation }) {
+function StepThree({ formData, updateField, isBusiness, isEducation, errors = {} }) {
   return (
     <div>
       <SectionIntro
@@ -727,6 +865,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             label="Education Level"
             value={formData.educationLevel}
             onChange={(value) => updateField("educationLevel", value)}
+            required
+            error={errors.educationLevel}
             options={[
               { value: "professional", label: "Professional / Technical" },
               { value: "undergraduate", label: "Undergraduate" },
@@ -740,6 +880,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             placeholder="e.g. B.Tech Computer Science"
             value={formData.course}
             onChange={(value) => updateField("course", value)}
+            required
+            error={errors.course}
           />
 
           <TextField
@@ -747,6 +889,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             placeholder="Enter institution name"
             value={formData.institution}
             onChange={(value) => updateField("institution", value)}
+            required
+            error={errors.institution}
           />
 
           <TextField
@@ -756,6 +900,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             placeholder="e.g. 800000"
             value={formData.courseFee}
             onChange={(value) => updateField("courseFee", value)}
+            required
+            error={errors.courseFee}
           />
         </div>
       ) : (
@@ -764,6 +910,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             label="Project / Business Type"
             value={formData.businessType}
             onChange={(value) => updateField("businessType", value)}
+            required
+            error={errors.businessType}
             options={[
               { value: "tailoring", label: "Tailoring / Garment" },
               { value: "retail", label: "Retail / Shop" },
@@ -779,6 +927,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             label="Project Stage"
             value={formData.projectStage}
             onChange={(value) => updateField("projectStage", value)}
+            required
+            error={errors.projectStage}
             options={[
               { value: "new", label: "New Project" },
               { value: "existing", label: "Existing Project" },
@@ -792,6 +942,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             placeholder="e.g. 300000"
             value={formData.projectCost}
             onChange={(value) => updateField("projectCost", value)}
+            required
+            error={errors.projectCost}
           />
 
           <TextField
@@ -801,6 +953,8 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
             placeholder="e.g. 250000"
             value={formData.requiredLoan}
             onChange={(value) => updateField("requiredLoan", value)}
+            required
+            error={errors.requiredLoan}
           />
         </div>
       )}
@@ -822,7 +976,7 @@ function StepThree({ formData, updateField, isBusiness, isEducation }) {
   );
 }
 
-function StepFour({ formData, updateField }) {
+function StepFour({ formData, updateField, errors = {} }) {
   return (
     <div>
       <SectionIntro
@@ -839,12 +993,16 @@ function StepFour({ formData, updateField }) {
           placeholder="e.g. 50000"
           value={formData.ownContribution}
           onChange={(value) => updateField("ownContribution", value)}
+          required
+          error={errors.ownContribution}
         />
 
         <SelectField
           label="Do you have an existing loan?"
           value={formData.existingLoan}
           onChange={(value) => updateField("existingLoan", value)}
+          required
+          error={errors.existingLoan}
           options={[
             { value: "no", label: "No" },
             { value: "yes", label: "Yes" },
@@ -860,12 +1018,16 @@ function StepFour({ formData, updateField }) {
               placeholder="e.g. 90000"
               value={formData.outstandingAmount}
               onChange={(value) => updateField("outstandingAmount", value)}
+              required
+              error={errors.outstandingAmount}
             />
 
             <SelectField
               label="Any Existing Overdue?"
               value={formData.overdue}
               onChange={(value) => updateField("overdue", value)}
+              required
+              error={errors.overdue}
               options={[
                 { value: "no", label: "No" },
                 { value: "yes", label: "Yes" },

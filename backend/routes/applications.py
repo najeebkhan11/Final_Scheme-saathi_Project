@@ -1,8 +1,13 @@
 ﻿import re
+import json
+import random
 from datetime import datetime, timedelta
-from typing import Any, Optional
-from fastapi import APIRouter, HTTPException
+from typing import Any, Optional, Dict
+from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
+
+from database.database import get_db
+from services.auth import get_current_user
 
 router = APIRouter(
     prefix="/api/applications",
@@ -222,79 +227,71 @@ SAMPLE_APPLICATIONS: dict[str, dict[str, Any]] = {
                 "remarks": "Post-sanction disbursement."
             }
         ]
-    },
-    "SS-2026-AMY-1980": {
-        "application_id": "SS-2026-AMY-1980",
-        "applicant_name": "Kavita Devi",
-        "mobile_masked": "XXXXXX9012",
-        "scheme_id": "AMY",
-        "scheme_name": "Aajeevika Micro-Finance Yojana (AMY)",
-        "scheme_type": "PRIMARY",
-        "authority": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
-        "loan_amount": "Rs 50,000",
-        "purpose": "Handicraft & Tailoring Equipment",
-        "submission_date": "2026-08-28",
-        "last_updated": "2026-09-02",
-        "estimated_completion": "2026-09-12",
-        "current_stage_index": 2,
-        "status_code": "IN_PROGRESS",
-        "status_label": "Under SCA / Partner Appraisal",
-        "status_color": "blue",
-        "channel_partner": {
-            "name": "Mahila Arthik Vikas Mahamandal (MAVIM) / SCA",
-            "district": "Pune",
-            "state": "Maharashtra",
-            "office_address": "Administrative Building, Swargate, Pune - 411042",
-            "officer_in_charge": "Smt. Anita Patil (Cluster Coordinator)",
-            "contact_phone": "+91 20-24441098",
-            "helpline": "1800-222-014"
-        },
-        "action_required": None,
-        "official_note": "Application recommended by Self-Help Group (SHG) cluster. Under fast-track micro-finance appraisal.",
-        "timeline": [
-            {
-                "stage_index": 0,
-                "title": "Application Submitted",
-                "subtitle": "Fast-Track SHG Submission",
-                "date": "28 Aug 2026, 10:15 AM",
-                "status": "COMPLETED",
-                "remarks": "Micro-finance application received with SHG peer endorsement."
-            },
-            {
-                "stage_index": 1,
-                "title": "Document Verification",
-                "subtitle": "District Scrutiny Desk",
-                "date": "30 Aug 2026, 03:00 PM",
-                "status": "COMPLETED",
-                "remarks": "Aadhaar e-KYC and SC category certificate verified."
-            },
-            {
-                "stage_index": 2,
-                "title": "SCA / Channel Partner Review",
-                "subtitle": "MAVIM District Appraisal",
-                "date": "02 Sep 2026, 01:20 PM",
-                "status": "IN_PROGRESS",
-                "remarks": "Under quota allotment for self-employment cluster."
-            },
-            {
-                "stage_index": 3,
-                "title": "Bank Credit Appraisal & Sanction",
-                "subtitle": "Bank of Maharashtra (Nodal Branch)",
-                "date": "Expected: 07 Sep 2026",
-                "status": "PENDING",
-                "remarks": "Digital sanction generation."
-            },
-            {
-                "stage_index": 4,
-                "title": "Disbursement & DBT Credit",
-                "subtitle": "Direct DBT to Savings Account",
-                "date": "Expected: 12 Sep 2026",
-                "status": "PENDING",
-                "remarks": "Account credit upon partner signoff."
-            }
-        ]
     }
 }
+
+
+class ApplicationSubmitRequest(BaseModel):
+    scheme_id: str
+    scheme_name: str
+    scheme_type: Optional[str] = "PRIMARY"
+    authority: Optional[str] = "National Scheduled Castes Finance and Development Corporation (NSFDC)"
+    applicant_name: Optional[str] = None
+    mobile: Optional[str] = None
+    loan_amount: Optional[str] = None
+    purpose: Optional[str] = None
+    channel_partner: Optional[Dict[str, Any]] = None
+
+
+def generate_timeline(submission_dt: datetime, scheme_name: str, app_id: str) -> list[dict]:
+    d0 = submission_dt.strftime("%d %b %Y, %I:%M %p")
+    d1 = (submission_dt + timedelta(days=2)).strftime("Expected: %d %b %Y")
+    d2 = (submission_dt + timedelta(days=6)).strftime("Expected: %d %b %Y")
+    d3 = (submission_dt + timedelta(days=10)).strftime("Expected: %d %b %Y")
+    d4 = (submission_dt + timedelta(days=14)).strftime("Expected: %d %b %Y")
+
+    return [
+        {
+            "stage_index": 0,
+            "title": "Application Submitted",
+            "subtitle": "Online Submission via Scheme Saathi",
+            "date": d0,
+            "status": "COMPLETED",
+            "remarks": f"Application for {scheme_name} successfully recorded under Reference #{app_id}."
+        },
+        {
+            "stage_index": 1,
+            "title": "Document Verification",
+            "subtitle": "District Scrutiny Cell",
+            "date": d1,
+            "status": "IN_PROGRESS",
+            "remarks": "Digital KYC, category, and eligibility criteria verification in progress."
+        },
+        {
+            "stage_index": 2,
+            "title": "SCA / Channel Partner Review",
+            "subtitle": "State Channelizing Agency Committee",
+            "date": d2,
+            "status": "PENDING",
+            "remarks": "Quota allocation appraisal by nominated Channel Partner."
+        },
+        {
+            "stage_index": 3,
+            "title": "Bank Credit Appraisal & Sanction",
+            "subtitle": "Lending Branch Partner",
+            "date": d3,
+            "status": "PENDING",
+            "remarks": "Credit agreement execution and sanction letter issuance."
+        },
+        {
+            "stage_index": 4,
+            "title": "Disbursement & DBT Credit",
+            "subtitle": "Direct Benefit Transfer",
+            "date": d4,
+            "status": "PENDING",
+            "remarks": "Subsidized loan credit directly to Aadhaar-linked bank account."
+        }
+    ]
 
 
 def build_dynamic_application(app_id: str) -> dict[str, Any]:
@@ -303,7 +300,7 @@ def build_dynamic_application(app_id: str) -> dict[str, Any]:
     sub_date = (today - timedelta(days=6)).strftime("%Y-%m-%d")
     update_date = (today - timedelta(days=1)).strftime("%Y-%m-%d")
     est_date = (today + timedelta(days=10)).strftime("%Y-%m-%d")
-    
+
     return {
         "application_id": cleaned,
         "applicant_name": "Registered Citizen",
@@ -377,6 +374,177 @@ def build_dynamic_application(app_id: str) -> dict[str, Any]:
     }
 
 
+def row_to_application_dict(row: dict) -> dict[str, Any]:
+    partner = None
+    if row.get("channel_partner_json"):
+        try:
+            partner = json.loads(row["channel_partner_json"])
+        except Exception:
+            partner = None
+
+    timeline = []
+    if row.get("timeline_json"):
+        try:
+            timeline = json.loads(row["timeline_json"])
+        except Exception:
+            timeline = []
+
+    mobile = row.get("mobile", "")
+    masked = "XXXXXX" + mobile[-4:] if len(mobile) >= 4 else "XXXXXX0000"
+
+    return {
+        "application_id": row["application_id"],
+        "applicant_name": row["applicant_name"],
+        "mobile_masked": masked,
+        "scheme_id": row["scheme_id"],
+        "scheme_name": row["scheme_name"],
+        "scheme_type": row.get("scheme_type") or "PRIMARY",
+        "authority": row.get("authority") or "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+        "loan_amount": row.get("loan_amount") or "₹ 1,50,000",
+        "purpose": row.get("purpose") or "Self Employment Requirement",
+        "submission_date": row.get("submission_date"),
+        "last_updated": row.get("last_updated"),
+        "estimated_completion": row.get("estimated_completion"),
+        "current_stage_index": row.get("current_stage_index", 0),
+        "status_code": row.get("status_code", "IN_PROGRESS"),
+        "status_label": row.get("status_label", "Application Submitted"),
+        "status_color": row.get("status_color", "blue"),
+        "channel_partner": partner or {
+            "name": "State Channelizing Agency (SCA)",
+            "district": "Lead District Branch",
+            "state": "State Division",
+            "office_address": "Vikas Bhawan Complex",
+            "officer_in_charge": "District Nodal Officer",
+            "contact_phone": "1800-180-5566",
+            "helpline": "1800-180-6000"
+        },
+        "action_required": row.get("action_required"),
+        "official_note": row.get("official_note") or "Your application is under scrutiny by the designated Channel Partner.",
+        "timeline": timeline,
+    }
+
+
+@router.post("/submit")
+def submit_application(
+    request: ApplicationSubmitRequest,
+    authorization: Optional[str] = Header(None),
+):
+    user_id = None
+    applicant_name = request.applicant_name or "Applicant"
+    mobile = request.mobile or "9876543210"
+
+    # If Authorization token provided, extract user from DB
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        try:
+            from jose import jwt
+            from services.auth import SECRET_KEY, ALGORITHM
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("user_id")
+            if user_id:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name, identifier FROM users WHERE id = ?", (user_id,))
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        applicant_name = user_row["name"]
+                        mobile = user_row["identifier"]
+        except Exception:
+            pass
+
+    # Generate unique ID
+    clean_scheme = re.sub(r"[^A-Z0-9]", "", request.scheme_id.upper())[:4] or "SCH"
+    rand_num = random.randint(1000, 9999)
+    app_id = f"SS-2026-{clean_scheme}-{rand_num}"
+
+    now = datetime.now()
+    submission_date = now.strftime("%Y-%m-%d")
+    last_updated = now.strftime("%Y-%m-%d")
+    est_date = (now + timedelta(days=14)).strftime("%Y-%m-%d")
+
+    timeline = generate_timeline(now, request.scheme_name, app_id)
+    timeline_json = json.dumps(timeline)
+    partner_json = json.dumps(request.channel_partner) if request.channel_partner else None
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO user_applications (
+                application_id, user_id, applicant_name, mobile,
+                scheme_id, scheme_name, scheme_type, authority,
+                loan_amount, purpose, submission_date, last_updated,
+                estimated_completion, current_stage_index, status_code,
+                status_label, status_color, channel_partner_json,
+                official_note, action_required, timeline_json,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (
+                app_id,
+                user_id,
+                applicant_name,
+                mobile,
+                request.scheme_id,
+                request.scheme_name,
+                request.scheme_type or "PRIMARY",
+                request.authority or "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                request.loan_amount or "₹ 1,50,000",
+                request.purpose or "Income Generating Activity",
+                submission_date,
+                last_updated,
+                est_date,
+                0,
+                "IN_PROGRESS",
+                "Application Submitted - Under Scrutiny",
+                "blue",
+                partner_json,
+                f"Application registered successfully under #{app_id}. Initial document verification in progress.",
+                None,
+                timeline_json,
+            ),
+        )
+
+    # Return constructed application
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_applications WHERE application_id = ?", (app_id,))
+        row = cursor.fetchone()
+        app_dict = row_to_application_dict(dict(row))
+
+    return {
+        "status": "success",
+        "message": "Application submitted successfully and saved to database",
+        "application_id": app_id,
+        "application": app_dict,
+    }
+
+
+@router.get("/my-applications")
+def get_my_applications(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_id = current_user["id"]
+    identifier = current_user.get("identifier", "")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM user_applications
+            WHERE user_id = ? OR mobile = ?
+            ORDER BY created_at DESC
+            """,
+            (user_id, identifier),
+        )
+        rows = cursor.fetchall()
+        apps = [row_to_application_dict(dict(r)) for r in rows]
+
+    return {
+        "status": "success",
+        "count": len(apps),
+        "applications": apps,
+    }
+
+
 @router.get("/samples")
 def get_sample_applications():
     samples = []
@@ -398,16 +566,38 @@ def track_application(application_id: str):
     app_id = application_id.strip()
     if not app_id:
         raise HTTPException(status_code=400, detail="Application ID cannot be empty.")
-    
+
+    # 1. Search in SQLite Database first
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM user_applications
+            WHERE lower(application_id) = lower(?) OR mobile = ?
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (app_id, app_id),
+        )
+        row = cursor.fetchone()
+        if row:
+            return {
+                "status": "success",
+                "found": True,
+                "source": "database",
+                "application": row_to_application_dict(dict(row)),
+            }
+
+    # 2. Check in Sample Applications dictionary
     for sample_id, data in SAMPLE_APPLICATIONS.items():
         if sample_id.lower() == app_id.lower():
-            return {"status": "success", "found": True, "application": data}
-        
+            return {"status": "success", "found": True, "source": "sample", "application": data}
+
     digits = re.sub(r"\D", "", app_id)
     if len(digits) == 10:
         first = list(SAMPLE_APPLICATIONS.values())[0].copy()
         first["mobile_masked"] = f"XXXXXX{digits[-4:]}"
-        return {"status": "success", "found": True, "application": first}
+        return {"status": "success", "found": True, "source": "sample", "application": first}
 
+    # 3. Dynamic generator
     dynamic_app = build_dynamic_application(app_id)
-    return {"status": "success", "found": True, "application": dynamic_app}
+    return {"status": "success", "found": True, "source": "dynamic", "application": dynamic_app}

@@ -29,9 +29,13 @@ class PartnerSearchRequest(
     district: Optional[str] = None
     scheme_id: Optional[str] = None
     loan_category: Optional[str] = None
+    partner_category: Optional[str] = None
     max_results: int = 10
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    max_npa_rate: Optional[float] = None
+    min_fund_utilization: Optional[float] = None
+    only_fast_track: Optional[bool] = False
     ai_rank: Optional[bool] = True
 
 
@@ -48,6 +52,10 @@ async def search_partners(
             max_results=request.max_results,
             user_lat=request.latitude,
             user_lon=request.longitude,
+            partner_category=request.partner_category,
+            max_npa_rate=request.max_npa_rate,
+            min_fund_utilization=request.min_fund_utilization,
+            only_fast_track=bool(request.only_fast_track),
         )
 
         # AI Ranking enhancement when partners are found

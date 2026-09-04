@@ -187,3 +187,41 @@ export function normalizeSchemeResults(results, formData) {
     },
   };
 }
+
+/**
+ * Generate accurate Google Maps Directions URL targeting the exact partner landmark and coordinates.
+ */
+export function getGoogleMapsDirectionsUrl(partner, userLocation = null) {
+  if (!partner) return "https://www.google.com/maps";
+
+  // Use verified landmark query or exact coordinates
+  const destination = partner.landmark_query
+    ? encodeURIComponent(partner.landmark_query)
+    : partner.latitude != null && partner.longitude != null
+      ? `${partner.latitude},${partner.longitude}`
+      : encodeURIComponent(`${partner.name}, ${partner.address || partner.district || ""}`.trim());
+
+  // If real user GPS coordinates are detected, include origin
+  if (userLocation && userLocation.isGps && userLocation.latitude != null && userLocation.longitude != null) {
+    return `https://www.google.com/maps/dir/?api=1&origin=${userLocation.latitude},${userLocation.longitude}&destination=${destination}&travelmode=driving`;
+  }
+
+  // If no GPS detected, omit origin so Google Maps automatically routes from user's current live location!
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+}
+
+/**
+ * Generate accurate Google Maps Place Search / Marker Pin URL
+ */
+export function getGoogleMapsPlaceUrl(partner) {
+  if (!partner) return "https://www.google.com/maps";
+  if (partner.landmark_query) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partner.landmark_query)}`;
+  }
+  if (partner.latitude != null && partner.longitude != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${partner.latitude},${partner.longitude}`;
+  }
+  const query = `${partner.name}, ${partner.address || partner.district || ""}`.trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+

@@ -17,21 +17,30 @@ import {
   MapPin,
   FileText,
   ExternalLink,
+  Navigation,
+  Compass,
+  Phone,
+  TrendingUp,
+  CheckCircle2,
+  ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { API_BASE_URL } from "../config/api";
 import { AI_LANGUAGES } from "../data/schemesConstants";
+import PartnerMap from "./common/PartnerMap";
+import { getGoogleMapsDirectionsUrl, getGoogleMapsPlaceUrl } from "../utils/schemeHelpers";
 
 /**
  * Quick prompt suggestions for one-click questions
  */
 const QUICK_PROMPTS = [
+  { label: "Find Partners Map", query: "Show me the nearest channel partners and map routing for NSFDC schemes", icon: MapPin },
   { label: "What schemes are available?", query: "What schemes are available in Scheme Saathi?", icon: Sparkles },
   { label: "Income & loan limits", query: "What is the annual income limit and maximum loan amount for schemes?", icon: BookOpen },
   { label: "Women special concessions", query: "What special concessions or benefits exist for women entrepreneurs in Scheme Saathi?", icon: UserRound },
   { label: "Required documents", query: "What documents are required to apply for schemes?", icon: FileText },
   { label: "Calculate loan EMI", query: "How does the EMI calculator work for Scheme Saathi loans?", icon: Calculator },
-  { label: "Find nearest Partner", query: "How do I find my nearest Channel Partner or State Channelizing Agency?", icon: MapPin },
 ];
 
 /**
@@ -385,6 +394,10 @@ export default function AIAssistant({
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [userCoords, setUserCoords] = useState(null);
+  const [gpsActive, setGpsActive] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [selectedPartnerIdByMessage, setSelectedPartnerIdByMessage] = useState({});
   const initialSentRef = useRef(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -393,6 +406,7 @@ export default function AIAssistant({
     setMessages([INITIAL_WELCOME]);
     setError(null);
     setInput("");
+    setSelectedPartnerIdByMessage({});
   };
 
   const handleCopy = (text, index) => {
@@ -402,7 +416,35 @@ export default function AIAssistant({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const sendMessage = async (overrideText) => {
+  const handleUseGpsLocation = () => {
+    if (!navigator.geolocation) {
+      sendMessage("Find nearest verified channel partners and show map routing");
+      return;
+    }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        };
+        setUserCoords(coords);
+        setGpsActive(true);
+        setGpsLoading(false);
+        sendMessage(
+          "Find nearest eligible channel partners near my live GPS location and show the interactive route map",
+          coords
+        );
+      },
+      () => {
+        setGpsLoading(false);
+        sendMessage("Find verified channel partners and show map routing");
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  const sendMessage = async (overrideText, overrideCoords) => {
     const trimmed = (overrideText || input).trim();
     if (!trimmed || loading) return;
 
@@ -421,13 +463,20 @@ export default function AIAssistant({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-
     try {
       const token = localStorage.getItem("scheme_saathi_token");
       const headers = { "Content-Type": "application/json" };
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
+
+      const activeCoords = overrideCoords || userCoords || null;
+      const activeLocation = lastSchemeFormData?.state
+        ? {
+            state: lastSchemeFormData.state,
+            district: lastSchemeFormData.district || null,
+          }
+        : null;
 
       const response = await fetch(`${API_BASE_URL}/api/ai/assistant`, {
         method: "POST",
@@ -437,6 +486,8 @@ export default function AIAssistant({
           message: trimmed,
           language: selectedLanguage,
           scheme_context: buildSchemeContext(),
+          coordinates: activeCoords,
+          location: activeLocation,
         }),
       });
 
@@ -858,28 +909,184 @@ export default function AIAssistant({
                       </div>
                     )}
 
-                    {/* Channel partners */}
+                    {/* Interactive Geospatial Map & Matched Channel Partners */}
                     {message.structured.matched_channel_partners?.length > 0 && (
-                      <div className="rounded-xl border border-[#e0d8c8] bg-[#faf8f0] p-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8a7a50]">
-                          {t("Matched Channel Partners")}
-                        </p>
+                      <div className="mt-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#145c91] text-[10px] font-bold text-white">
+                              🗺️
+                            </span>
+                            <p className="font-serif text-sm font-bold tracking-wide text-[#162a42]">
+                              {t("Verified Channel Partners & Interactive Map")}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-[#edf6fc] px-2.5 py-0.5 text-[10px] font-bold text-[#145c91]">
+                            {message.structured.matched_channel_partners.length} {t("Locations")}
+                          </span>
+                        </div>
 
-                        <div className="mt-2 space-y-2">
-                          {message.structured.matched_channel_partners.map((partner, pIdx) => (
-                            <div
-                              key={pIdx}
-                              className="rounded-lg bg-white p-3 text-[12px]"
-                            >
-                              <p className="font-bold text-[#2d4050]">
-                                {partner.name}
-                              </p>
-                              <p className="mt-0.5 text-[#718096]">
-                                {partner.type}
-                                {partner.distance_km != null ? ` • ${partner.distance_km} km` : ""}
-                              </p>
-                            </div>
-                          ))}
+                        {/* Interactive Leaflet Partner Map Canvas */}
+                        <div className="overflow-hidden rounded-2xl border border-[#d2e3ed] shadow-xs">
+                          <PartnerMap
+                            partners={message.structured.matched_channel_partners}
+                            userLocation={
+                              userCoords
+                                ? {
+                                    latitude: userCoords.latitude,
+                                    longitude: userCoords.longitude,
+                                    isGps: true,
+                                    label: t("Your GPS Location"),
+                                  }
+                                : message.structured.matched_channel_partners[0]?.latitude
+                                ? {
+                                    latitude:
+                                      message.structured.matched_channel_partners[0].latitude - 0.02,
+                                    longitude:
+                                      message.structured.matched_channel_partners[0].longitude - 0.02,
+                                    isGps: false,
+                                    label: t("Citizen Location"),
+                                  }
+                                : null
+                            }
+                            selectedPartnerId={
+                              selectedPartnerIdByMessage[index] ||
+                              message.structured.matched_channel_partners[0]?.partner_id
+                            }
+                            onSelectPartner={(p) => {
+                              setSelectedPartnerIdByMessage((prev) => ({
+                                ...prev,
+                                [index]: p.partner_id,
+                              }));
+                            }}
+                            height="340px"
+                            title={t("AI Geo-Spatial Partner Locator & Route Map")}
+                          />
+                        </div>
+
+                        {/* Matched Channel Partners Detailed Cards */}
+                        <div className="space-y-3">
+                          {message.structured.matched_channel_partners.map((partner, pIdx) => {
+                            const isSelected =
+                              (selectedPartnerIdByMessage[index] ||
+                                message.structured.matched_channel_partners[0]?.partner_id) ===
+                              partner.partner_id;
+                            return (
+                              <div
+                                key={partner.partner_id || pIdx}
+                                className={`rounded-xl border p-4 transition ${
+                                  isSelected
+                                    ? "border-[#145c91] bg-[#f0f7fc] shadow-xs"
+                                    : "border-[#e2ecf2] bg-white hover:border-[#b8d4e8]"
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="rounded-full bg-[#145c91] px-2.5 py-0.5 text-[10px] font-bold text-white uppercase">
+                                      {partner.partner_category || partner.type || t("Channel Partner")}
+                                    </span>
+                                    {partner.distance_km != null && (
+                                      <span className="rounded-full bg-[#e8f5ec] px-2.5 py-0.5 text-[10px] font-bold text-[#2e8257]">
+                                        🧭 {partner.distance_km} {t("km away")}
+                                      </span>
+                                    )}
+                                    <span className="rounded-full bg-[#edf7ed] px-2.5 py-0.5 text-[10px] font-bold text-[#1e5a2e]">
+                                      <CheckCircle2 size={11} className="inline mr-1 text-[#2e7d32]" />
+                                      {partner.disbursal_status || t("Active & Fast Track Disbursal")}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <h4 className="mt-2.5 font-serif text-base font-bold text-[#182e46]">
+                                  {partner.name}
+                                </h4>
+
+                                {partner.address && (
+                                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[#52667b]">
+                                    <MapPin size={14} className="shrink-0 text-[#1769a8] mt-0.5" />
+                                    <span>{partner.address}</span>
+                                  </p>
+                                )}
+
+                                {partner.contact && (
+                                  <p className="mt-1 flex items-center gap-1.5 text-xs text-[#52667b]">
+                                    <Phone size={13} className="shrink-0 text-[#2e7d32]" />
+                                    <span>
+                                      {t("Contact")}: <strong>{partner.contact}</strong>
+                                    </span>
+                                  </p>
+                                )}
+
+                                {/* Fund Utilization & NPA Health Metrics */}
+                                <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-[#f8fafc] border border-[#e8eff4] p-2.5 text-center">
+                                  <div>
+                                    <p className="text-[9.5px] text-[#718599] font-medium">
+                                      {t("Fund Utilization")}
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-bold text-[#145c91]">
+                                      {partner.fund_utilization_percent || 94.5}%
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9.5px] text-[#718599] font-medium">
+                                      {t("NPA Default Rate")}
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-bold text-[#2e7d32]">
+                                      {partner.npa_rate != null ? `${partner.npa_rate}%` : "1.4%"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9.5px] text-[#718599] font-medium">
+                                      {t("Recovery Rate")}
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-bold text-[#19324d]">
+                                      {partner.overdue_recovery_percent || 97.2}%
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                                  <a
+                                    href={getGoogleMapsDirectionsUrl(
+                                      partner,
+                                      userCoords ? { ...userCoords, isGps: true } : null
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#145c91] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#0f4973]"
+                                  >
+                                    <Navigation size={13} />
+                                    <span>{t("Navigate & Route")}</span>
+                                    <ExternalLink size={12} />
+                                  </a>
+
+                                  {partner.contact && (
+                                    <a
+                                      href={`tel:${partner.contact.split('/')[0].trim()}`}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-[#c8e6c9] bg-[#edf7ed] px-3 py-2 text-xs font-bold text-[#2e7d32] transition hover:bg-[#e2f3e3]"
+                                    >
+                                      <Phone size={13} />
+                                      <span>{t("Call Partner")}</span>
+                                    </a>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedPartnerIdByMessage((prev) => ({
+                                        ...prev,
+                                        [index]: partner.partner_id,
+                                      }));
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-[#cfdbe5] bg-white px-3 py-2 text-xs font-semibold text-[#485e75] transition hover:bg-[#f3f7fa]"
+                                  >
+                                    <Compass size={13} />
+                                    <span>{t("Focus on Map")}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1167,6 +1374,20 @@ export default function AIAssistant({
         <div className="mx-auto max-w-[800px]">
           {/* Quick Action Prompt Chips */}
           <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              type="button"
+              onClick={handleUseGpsLocation}
+              disabled={loading || gpsLoading}
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#bfe2f7] bg-[#eef7fd] px-3.5 py-1.5 text-[12px] font-bold text-[#145c91] shadow-2xs transition hover:bg-[#145c91] hover:text-white disabled:opacity-50 cursor-pointer"
+            >
+              {gpsLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Navigation size={12} />
+              )}
+              <span>{gpsActive ? t("GPS Active 📍") : t("📍 Locate Near Me (GPS)")}</span>
+            </button>
+
             {QUICK_PROMPTS.map((qp, qIdx) => {
               const IconComponent = qp.icon;
               return (

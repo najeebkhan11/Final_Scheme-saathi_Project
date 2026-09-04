@@ -4,7 +4,7 @@ import { PRIMARY_SCHEMES } from "../data/schemesConstants";
 import { SchemeCard } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
 
-export default function ExploreSchemes({ onBack, onLogin }) {
+export default function ExploreSchemes({ onBack, onLogin, onLocatePartner }) {
   const { t } = useTranslation();
 
   return (
@@ -44,7 +44,7 @@ export default function ExploreSchemes({ onBack, onLogin }) {
             {t("Explore government credit options.")}
           </h1>
           <p className="mt-4 text-base leading-7 text-[#66788d]">
-            {t("Browse the primary Scheme Saathi scope without creating an account. Personalized eligibility matching requires sign-in.")}
+            {t("Browse the primary Scheme Saathi scope without creating an account. View nearest partner locations and map routing directly for each scheme.")}
           </p>
         </div>
 
@@ -65,7 +65,11 @@ export default function ExploreSchemes({ onBack, onLogin }) {
 
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {PRIMARY_SCHEMES.map((scheme) => (
-              <SchemeCard key={scheme.code} {...scheme} />
+              <SchemeCard
+                key={scheme.code}
+                {...scheme}
+                onLocatePartner={onLocatePartner}
+              />
             ))}
           </div>
         </section>

@@ -258,10 +258,91 @@ async def ai_assistant(
             ineligible_schemes, all_schemes
         )
 
-    # Auto-fetch channel partners for schemes that need them
-    # If any scheme has channel_partner_fallback_needed, fetch partner data
+    # Auto-fetch channel partners for map, location, or partner queries
     partner_output = request.partner_output
     if not partner_output:
+        message_lower = (request.message or "").lower()
+        
+        # Check if message is asking about partners, locations, maps, or branches
+        partner_keywords = [
+            "partner", "agency", "sca", "bank", "nbfc", "where to apply",
+            "where can i apply", "how to apply", "location", "map", "route",
+            "directions", "office", "center", "centre", "branch", "near me",
+            "closest", "nearest", "address", "locate", "channel", "institution"
+        ]
+        is_partner_query = any(k in message_lower for k in partner_keywords)
+
+        # Location dictionary mapping for smart city / state extraction
+        location_map = {
+            "lucknow": ("Uttar Pradesh", "Lucknow"),
+            "hazratganj": ("Uttar Pradesh", "Lucknow"),
+            "gomti nagar": ("Uttar Pradesh", "Lucknow"),
+            "uttar pradesh": ("Uttar Pradesh", None),
+            "delhi": ("Delhi", None),
+            "new delhi": ("Delhi", "Central Delhi"),
+            "rohini": ("Delhi", "North West Delhi"),
+            "laxmi nagar": ("Delhi", "East Delhi"),
+            "mumbai": ("Maharashtra", "Mumbai City"),
+            "andheri": ("Maharashtra", "Mumbai Suburban"),
+            "maharashtra": ("Maharashtra", None),
+            "bengaluru": ("Karnataka", "Bengaluru Urban"),
+            "bangalore": ("Karnataka", "Bengaluru Urban"),
+            "karnataka": ("Karnataka", None),
+            "kolkata": ("West Bengal", "Kolkata"),
+            "west bengal": ("West Bengal", None),
+            "chennai": ("Tamil Nadu", "Chennai"),
+            "tamil nadu": ("Tamil Nadu", None),
+            "hyderabad": ("Telangana", "Hyderabad"),
+            "telangana": ("Telangana", None),
+            "vijayawada": ("Andhra Pradesh", "Krishna"),
+            "andhra pradesh": ("Andhra Pradesh", None),
+            "jaipur": ("Rajasthan", "Jaipur"),
+            "rajasthan": ("Rajasthan", None),
+            "gandhinagar": ("Gujarat", "Gandhinagar"),
+            "ahmedabad": ("Gujarat", "Ahmedabad"),
+            "gujarat": ("Gujarat", None),
+            "patna": ("Bihar", "Patna"),
+            "bihar": ("Bihar", None),
+            "bhopal": ("Madhya Pradesh", "Bhopal"),
+            "madhya pradesh": ("Madhya Pradesh", None),
+            "thrissur": ("Kerala", "Thrissur"),
+            "kerala": ("Kerala", None),
+            "chandigarh": ("Punjab", "Chandigarh (UT)"),
+            "punjab": ("Punjab", None),
+            "panchkula": ("Haryana", "Chandigarh (UT)"),
+            "haryana": ("Haryana", None),
+            "bhubaneswar": ("Odisha", "Khordha"),
+            "odisha": ("Odisha", None),
+            "guwahati": ("Assam", "Kamrup Metropolitan"),
+            "assam": ("Assam", None),
+        }
+
+        extracted_state = None
+        extracted_district = None
+        for loc_key, (st, dist) in location_map.items():
+            if loc_key in message_lower:
+                extracted_state = st
+                if dist:
+                    extracted_district = dist
+                break
+
+        # Check explicit location or coordinates in request
+        req_state = (request.location or {}).get("state") if request.location else None
+        req_district = (request.location or {}).get("district") if request.location else None
+        user_lat = (request.coordinates or {}).get("latitude") if request.coordinates else None
+        user_lon = (request.coordinates or {}).get("longitude") if request.coordinates else None
+
+        # Fallback to user profile or scheme context
+        profile_state = user_profile.get("state") if user_profile else None
+        profile_district = user_profile.get("district") if user_profile else None
+        if not profile_state and request.scheme_context:
+            ctx_profile = request.scheme_context.get("user_profile", {})
+            profile_state = ctx_profile.get("state")
+            profile_district = ctx_profile.get("district")
+
+        target_state = extracted_state or req_state or profile_state
+        target_district = extracted_district or req_district or profile_district
+
         schemes_needing_partners = []
         for scheme in (eligible_schemes or []):
             if scheme.get("channel_partner_fallback_needed"):
@@ -270,30 +351,18 @@ async def ai_assistant(
             if scheme.get("channel_partner_fallback_needed"):
                 schemes_needing_partners.append(scheme)
 
-        if schemes_needing_partners:
-            # Determine user location from profile or scheme context
-            user_state = None
-            user_district = None
-            if user_profile:
-                user_state = user_profile.get("state")
-                user_district = user_profile.get("district")
-            elif request.scheme_context:
-                ctx_profile = request.scheme_context.get("user_profile", {})
-                user_state = ctx_profile.get("state")
-                user_district = ctx_profile.get("district")
-
-            # Find partners for the first scheme needing partners
-            # (typically all schemes share the same channel requirements)
-            if user_state:
-                try:
-                    partner_output = find_channel_partners(
-                        state=user_state,
-                        district=user_district,
-                        max_results=5,
-                    )
-                except Exception:
-                    # Partner locator failure should not crash the AI assistant
-                    partner_output = None
+        # Trigger partner locator if it's a partner/map query, or user has location, or scheme needs partners
+        if is_partner_query or extracted_state or user_lat or schemes_needing_partners:
+            try:
+                partner_output = find_channel_partners(
+                    state=target_state or ("Uttar Pradesh" if is_partner_query and not user_lat else None),
+                    district=target_district,
+                    user_lat=user_lat,
+                    user_lon=user_lon,
+                    max_results=6,
+                )
+            except Exception:
+                partner_output = None
 
     # Auto-calculate EMI if user asks about EMI or loan calculations
     # Check if message contains EMI-related keywords

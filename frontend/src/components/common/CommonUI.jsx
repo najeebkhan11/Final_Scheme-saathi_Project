@@ -38,12 +38,18 @@ export function TextField({
   onChange,
   type = "text",
   prefix,
+  error,
+  required = false,
+  helper,
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[13px] font-bold text-[#2c4058]">
-        {label}
-      </span>
+      {label ? (
+        <span className="mb-2 block text-[13px] font-bold text-[#2c4058]">
+          {label}
+          {required && <span className="ml-0.5 text-red-500">*</span>}
+        </span>
+      ) : null}
       <div className="relative">
         {prefix && (
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#7a8999]">
@@ -56,12 +62,22 @@ export function TextField({
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
           className={[
-            "w-full rounded-lg border border-[#ced9e1] bg-white px-4 py-3.5 text-sm text-[#21364f] outline-none transition",
-            "placeholder:text-[#a1acb6] focus:border-[#1769a8] focus:ring-4 focus:ring-[#1769a8]/10",
+            "w-full rounded-lg border bg-white px-4 py-3.5 text-sm text-[#21364f] outline-none transition",
+            error
+              ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              : "border-[#ced9e1] focus:border-[#1769a8] focus:ring-4 focus:ring-[#1769a8]/10",
+            "placeholder:text-[#a1acb6]",
             prefix ? "pl-9" : "",
           ].join(" ")}
         />
       </div>
+      {error ? (
+        <span className="mt-1.5 block text-[11px] font-semibold text-red-600">
+          {error}
+        </span>
+      ) : helper ? (
+        <span className="mt-1.5 block text-[10px] text-[#8a97a4]">{helper}</span>
+      ) : null}
     </label>
   );
 }
@@ -69,6 +85,8 @@ export function TextField({
 export function SelectField({
   label,
   helper,
+  error,
+  required = false,
   value,
   onChange,
   options,
@@ -80,6 +98,7 @@ export function SelectField({
       {label ? (
         <span className="mb-2 block text-[13px] font-bold text-[#2c4058]">
           {label}
+          {required && <span className="ml-0.5 text-red-500">*</span>}
         </span>
       ) : null}
       <div className="relative">
@@ -87,7 +106,11 @@ export function SelectField({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className={`w-full appearance-none rounded-lg border border-[#ced9e1] bg-white px-4 py-3.5 pr-10 text-sm text-[#21364f] outline-none transition focus:border-[#1769a8] focus:ring-4 focus:ring-[#1769a8]/10 ${
+          className={`w-full appearance-none rounded-lg border bg-white px-4 py-3.5 pr-10 text-sm text-[#21364f] outline-none transition ${
+            error
+              ? "border-red-400 bg-red-50/20 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              : "border-[#ced9e1] focus:border-[#1769a8] focus:ring-4 focus:ring-[#1769a8]/10"
+          } ${
             disabled ? "cursor-not-allowed bg-[#f8fafc] text-[#94a3b8] opacity-75" : ""
           }`}
         >
@@ -105,11 +128,13 @@ export function SelectField({
           }`}
         />
       </div>
-      {helper && (
-        <span className="mt-1.5 block text-[10px] text-[#8a97a4]">
-          {helper}
+      {error ? (
+        <span className="mt-1.5 block text-[11px] font-semibold text-red-600">
+          {error}
         </span>
-      )}
+      ) : helper ? (
+        <span className="mt-1.5 block text-[10px] text-[#8a97a4]">{helper}</span>
+      ) : null}
     </label>
   );
 }
@@ -226,6 +251,7 @@ export function SchemeCard({
   documents,
   route,
   icon,
+  onLocatePartner,
 }) {
   const { t } = useTranslation();
   return (
@@ -299,9 +325,20 @@ export function SchemeCard({
         </p>
       </div>
 
-      <div className="mt-4 flex items-start gap-2 text-xs font-semibold text-[#1769a8]">
-        <MapPin size={15} className="mt-0.5 shrink-0" />
-        <span>{t("Application route:")} {route}</span>
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#edf2f6] pt-3 text-xs font-semibold text-[#1769a8]">
+        <div className="flex items-start gap-1.5 min-w-0">
+          <MapPin size={15} className="mt-0.5 shrink-0 text-[#1769a8]" />
+          <span className="line-clamp-1">{t("Route:")} {route}</span>
+        </div>
+        {onLocatePartner && (
+          <button
+            onClick={() => onLocatePartner(code)}
+            className="shrink-0 inline-flex items-center gap-1 rounded-md bg-[#eef7fd] px-2.5 py-1 text-[11px] font-bold text-[#145c91] transition hover:bg-[#145c91] hover:text-white"
+          >
+            <span>{t("Find Map")}</span>
+            <span>→</span>
+          </button>
+        )}
       </div>
     </div>
   );

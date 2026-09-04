@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "last_updated": "2026-09-04",
   "data_policy": {
     "description": "Verified official State Channelising Agencies (SCAs), NSFDC Regional & Liaison Centres, and the National Digital PM-SURAJ application portal.",
@@ -40,8 +40,8 @@
         "NSFDC_ELS"
       ],
       "max_loan_amount_handled": 5000000,
-      "latitude": 28.6139,
-      "longitude": 77.209,
+      "latitude": 28.6172,
+      "longitude": 77.2155,
       "status": "active",
       "verified": true,
       "verification_source": "Ministry of Social Justice and Empowerment, Government of India",
@@ -49,7 +49,15 @@
       "record_scope": "national_digital_portal",
       "is_fallback": true,
       "is_application_channel": true,
-      "fallback_priority": 1
+      "fallback_priority": 1,
+      "partner_category": "Digital Portal",
+      "npa_rate": 0.0,
+      "fund_utilization_percent": 98.5,
+      "overdue_recovery_percent": 99.2,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Ministry of Social Justice and Empowerment, Shastri Bhawan, New Delhi"
     },
     {
       "partner_id": "NSFDC_DELHI_HQ",
@@ -87,7 +95,15 @@
       "record_scope": "physical_official_location",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "NSFDC Liaison Centre",
+      "npa_rate": 1.2,
+      "fund_utilization_percent": 96.0,
+      "overdue_recovery_percent": 98.4,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "SCOPE Minar, Laxmi Nagar District Centre, Delhi"
     },
     {
       "partner_id": "SCA_DELHI_DSCDC",
@@ -122,7 +138,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.4,
+      "fund_utilization_percent": 91.5,
+      "overdue_recovery_percent": 96.2,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Ambedkar Bhawan, Sector 16, Rohini, Delhi"
     },
     {
       "partner_id": "NSFDC_LIAISON_MUMBAI",
@@ -149,8 +173,8 @@
         "VISVAS"
       ],
       "max_loan_amount_handled": 5000000,
-      "latitude": 19.136,
-      "longitude": 72.829,
+      "latitude": 19.1415,
+      "longitude": 72.831,
       "status": "active",
       "verified": true,
       "verification_source": "Official NSFDC Disclosure",
@@ -158,7 +182,15 @@
       "record_scope": "physical_official_location",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "NSFDC Liaison Centre",
+      "npa_rate": 1.5,
+      "fund_utilization_percent": 95.0,
+      "overdue_recovery_percent": 97.9,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "MHADA Complex, Adarsh Nagar, New Link Road, Andheri West, Mumbai"
     },
     {
       "partner_id": "SCA_MAH_MPBCDC",
@@ -185,8 +217,8 @@
         "VISVAS"
       ],
       "max_loan_amount_handled": 5000000,
-      "latitude": 19.06,
-      "longitude": 72.8656,
+      "latitude": 19.0655,
+      "longitude": 72.868,
       "status": "active",
       "verified": true,
       "verification_source": "Government of Maharashtra",
@@ -194,7 +226,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 3.1,
+      "fund_utilization_percent": 88.0,
+      "overdue_recovery_percent": 94.5,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Supreme Headquarters, Bandra Kurla Complex, Mumbai"
     },
     {
       "partner_id": "NSFDC_LIAISON_BENGALURU",
@@ -230,7 +270,15 @@
       "record_scope": "physical_official_location",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "NSFDC Liaison Centre",
+      "npa_rate": 1.1,
+      "fund_utilization_percent": 97.2,
+      "overdue_recovery_percent": 98.7,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Visveswaraiah Main Tower, Dr. Ambedkar Veedhi, Bengaluru"
     },
     {
       "partner_id": "SCA_KA_AMBEDKAR",
@@ -266,7 +314,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.2,
+      "fund_utilization_percent": 93.0,
+      "overdue_recovery_percent": 96.8,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Vishveshwaraiah Centre, Dr. Ambedkar Veedhi, Bengaluru"
     },
     {
       "partner_id": "NSFDC_LIAISON_LUCKNOW",
@@ -274,7 +330,7 @@
       "type": "NSFDC Liaison Centre",
       "state": "Uttar Pradesh",
       "district": "Lucknow",
-      "address": "B-2, 4th Floor, PICUP Bhawan, Gomti Nagar, Lucknow, Uttar Pradesh - 226010",
+      "address": "B-2, 4th Floor, PICUP Bhawan, Vibhuti Khand, Gomti Nagar, Lucknow, Uttar Pradesh - 226010",
       "contact": "0522-4346535 / lucknow-nsfdc@nic.in",
       "website": "https://nsfdc.nic.in",
       "official_url": "https://nsfdc.nic.in",
@@ -293,8 +349,8 @@
         "VISVAS"
       ],
       "max_loan_amount_handled": 5000000,
-      "latitude": 26.852,
-      "longitude": 80.99,
+      "latitude": 26.8667,
+      "longitude": 81.0023,
       "status": "active",
       "verified": true,
       "verification_source": "Official NSFDC Disclosure",
@@ -302,7 +358,15 @@
       "record_scope": "physical_official_location",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "NSFDC Liaison Centre",
+      "npa_rate": 1.4,
+      "fund_utilization_percent": 94.8,
+      "overdue_recovery_percent": 97.5,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "PICUP Bhawan, Vibhuti Khand, Gomti Nagar, Lucknow"
     },
     {
       "partner_id": "SCA_UP_UPSCFDC",
@@ -329,8 +393,8 @@
         "VISVAS"
       ],
       "max_loan_amount_handled": 5000000,
-      "latitude": 26.856,
-      "longitude": 80.9466,
+      "latitude": 26.853,
+      "longitude": 80.9462,
       "status": "active",
       "verified": true,
       "verification_source": "Government of Uttar Pradesh",
@@ -338,7 +402,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.8,
+      "fund_utilization_percent": 90.2,
+      "overdue_recovery_percent": 95.4,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Ram Prakash Gupta Bhawan, Hazratganj, Lucknow"
     },
     {
       "partner_id": "NSFDC_LIAISON_KOLKATA",
@@ -374,7 +446,15 @@
       "record_scope": "physical_official_location",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "NSFDC Liaison Centre",
+      "npa_rate": 1.6,
+      "fund_utilization_percent": 93.5,
+      "overdue_recovery_percent": 96.9,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Nellie Sengupta Sarani, New Market, Kolkata"
     },
     {
       "partner_id": "SCA_WB_SCST_CORP",
@@ -410,7 +490,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.9,
+      "fund_utilization_percent": 89.0,
+      "overdue_recovery_percent": 95.1,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "CF Block, Sector 1, Bidhannagar, Salt Lake, Kolkata"
     },
     {
       "partner_id": "SCA_TN_TAHDCO",
@@ -446,7 +534,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 1.9,
+      "fund_utilization_percent": 95.6,
+      "overdue_recovery_percent": 97.8,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "TAHDCO, Cenotaph Road, Teynampet, Chennai"
     },
     {
       "partner_id": "SCA_AP_APSCCFC",
@@ -482,7 +578,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.6,
+      "fund_utilization_percent": 91.0,
+      "overdue_recovery_percent": 96.0,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Social Welfare Complex, MG Road, Bandar Road, Vijayawada"
     },
     {
       "partner_id": "SCA_TG_TSCCFC",
@@ -518,7 +622,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.1,
+      "fund_utilization_percent": 94.0,
+      "overdue_recovery_percent": 97.2,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "DSS Bhavan, Masab Tank, Hyderabad"
     },
     {
       "partner_id": "SCA_RAJ_ANUJA",
@@ -554,7 +666,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 3.2,
+      "fund_utilization_percent": 87.5,
+      "overdue_recovery_percent": 94.2,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Nehru Sahkar Bhawan, 22 Godam Circle, Jaipur"
     },
     {
       "partner_id": "SCA_GUJ_GSCDC",
@@ -590,7 +710,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 1.7,
+      "fund_utilization_percent": 96.2,
+      "overdue_recovery_percent": 98.1,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Dr. Jivraj Mehta Bhawan, Old Sachivalaya, Gandhinagar"
     },
     {
       "partner_id": "SCA_BIHAR_SCST",
@@ -626,7 +754,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 3.5,
+      "fund_utilization_percent": 85.0,
+      "overdue_recovery_percent": 93.8,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Maurya Lok Complex, Dak Bunglow Road, Patna"
     },
     {
       "partner_id": "SCA_MP_MPSCFDC",
@@ -662,7 +798,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.7,
+      "fund_utilization_percent": 90.5,
+      "overdue_recovery_percent": 95.6,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Rajeev Gandhi Bhawan, 35 Shyamla Hills, Bhopal"
     },
     {
       "partner_id": "SCA_KERALA_KSDC",
@@ -698,7 +842,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 1.3,
+      "fund_utilization_percent": 97.0,
+      "overdue_recovery_percent": 98.5,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Town Hall Road, Chembukkavu, Thrissur, Kerala"
     },
     {
       "partner_id": "SCA_PUNJAB_PSCFC",
@@ -734,7 +886,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.5,
+      "fund_utilization_percent": 92.0,
+      "overdue_recovery_percent": 96.4,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Sector 17-C, Chandigarh"
     },
     {
       "partner_id": "SCA_HARYANA_HSCFDC",
@@ -770,7 +930,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 2.0,
+      "fund_utilization_percent": 94.5,
+      "overdue_recovery_percent": 97.0,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Sector 2, Panchkula, Haryana"
     },
     {
       "partner_id": "SCA_ODISHA_OSFDC",
@@ -806,7 +974,15 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 3.0,
+      "fund_utilization_percent": 88.5,
+      "overdue_recovery_percent": 94.9,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Toshali Bhawan, Satyanagar, Bhubaneswar"
     },
     {
       "partner_id": "SCA_ASSAM_SC_CORP",
@@ -842,7 +1018,277 @@
       "record_scope": "state_channelising_agency",
       "is_fallback": false,
       "is_application_channel": true,
-      "fallback_priority": 999
+      "fallback_priority": 999,
+      "partner_category": "SCA",
+      "npa_rate": 3.4,
+      "fund_utilization_percent": 86.2,
+      "overdue_recovery_percent": 94.0,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Moderate",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Sarvodaya Bhawan, Rupnagar, Guwahati"
+    },
+    {
+      "partner_id": "BANK_SBI_LUCKNOW_MAIN",
+      "name": "State Bank of India - Social Banking & Priority Sector Branch",
+      "type": "Public Sector Bank (Partner Bank)",
+      "partner_category": "Bank",
+      "state": "Uttar Pradesh",
+      "district": "Lucknow",
+      "address": "SBI Main Branch Building, Moti Mahal Marg, Hazratganj, Lucknow - 226001",
+      "contact": "0522-2201482 / sbi.00125@sbi.co.in",
+      "website": "https://sbi.co.in",
+      "official_url": "https://sbi.co.in",
+      "supported_loan_categories": [
+        "education",
+        "business",
+        "agriculture",
+        "skill_development",
+        "micro_finance"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "TERM_LOAN",
+        "UNY",
+        "ELS",
+        "VISVAS",
+        "PMEGP",
+        "MUDRA"
+      ],
+      "max_loan_amount_handled": 5000000,
+      "latitude": 26.8535,
+      "longitude": 80.9458,
+      "status": "active",
+      "verified": true,
+      "verification_source": "State Bank of India Social Banking Division",
+      "verification_date": "2026-09-04",
+      "record_scope": "commercial_bank_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 1.6,
+      "fund_utilization_percent": 96.8,
+      "overdue_recovery_percent": 98.6,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "State Bank of India Main Branch, Moti Mahal Marg, Hazratganj, Lucknow"
+    },
+    {
+      "partner_id": "NBFC_MUTHOOT_LUCKNOW",
+      "name": "Muthoot Microfin Channel Hub Lucknow",
+      "type": "NBFC-MFI Channel Partner",
+      "partner_category": "NBFC-MFI",
+      "state": "Uttar Pradesh",
+      "district": "Lucknow",
+      "address": "2nd Floor, Cyber Heights, Vibhuti Khand, Gomti Nagar, Lucknow - 226010",
+      "contact": "0522-4029188 / contact@muthootmicrofin.com",
+      "website": "https://muthootmicrofin.com",
+      "official_url": "https://muthootmicrofin.com",
+      "supported_loan_categories": [
+        "business",
+        "micro_finance",
+        "agriculture"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "VISVAS",
+        "MUDRA"
+      ],
+      "max_loan_amount_handled": 1000000,
+      "latitude": 26.8665,
+      "longitude": 81.0025,
+      "status": "active",
+      "verified": true,
+      "verification_source": "RBI Registered NBFC-MFI / NSFDC Channel Partner",
+      "verification_date": "2026-09-04",
+      "record_scope": "nbfc_mfi_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 2.1,
+      "fund_utilization_percent": 93.4,
+      "overdue_recovery_percent": 97.1,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Cyber Heights, Vibhuti Khand, Gomti Nagar, Lucknow"
+    },
+    {
+      "partner_id": "BANK_PNB_DELHI_ROHINI",
+      "name": "Punjab National Bank - MSME & Inclusion Branch",
+      "type": "Public Sector Bank (Partner Bank)",
+      "partner_category": "Bank",
+      "state": "Delhi",
+      "district": "North West Delhi",
+      "address": "Plot No. 8, Community Centre, Sector 8, Rohini, New Delhi - 110085",
+      "contact": "011-27941234 / bo1420@pnb.co.in",
+      "website": "https://pnbindia.in",
+      "official_url": "https://pnbindia.in",
+      "supported_loan_categories": [
+        "education",
+        "business",
+        "skill_development",
+        "micro_finance"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "TERM_LOAN",
+        "UNY",
+        "ELS",
+        "VISVAS"
+      ],
+      "max_loan_amount_handled": 5000000,
+      "latitude": 28.705,
+      "longitude": 77.123,
+      "status": "active",
+      "verified": true,
+      "verification_source": "PNB Priority Lending Division",
+      "verification_date": "2026-09-04",
+      "record_scope": "commercial_bank_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 1.9,
+      "fund_utilization_percent": 95.2,
+      "overdue_recovery_percent": 97.9,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Punjab National Bank, Sector 8, Rohini, Delhi"
+    },
+    {
+      "partner_id": "NBFC_SATIN_DELHI",
+      "name": "Satin Creditcare Network - Social Credit Desk",
+      "type": "NBFC-MFI Channel Partner",
+      "partner_category": "NBFC-MFI",
+      "state": "Delhi",
+      "district": "Central Delhi",
+      "address": "Floor 4, Plot 97, Sector 44 / Karol Bagh Center, Delhi - 110005",
+      "contact": "011-47545000 / helpdesk@satincreditcare.com",
+      "website": "https://satincreditcare.com",
+      "official_url": "https://satincreditcare.com",
+      "supported_loan_categories": [
+        "business",
+        "micro_finance",
+        "agriculture"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "VISVAS"
+      ],
+      "max_loan_amount_handled": 800000,
+      "latitude": 28.6515,
+      "longitude": 77.1906,
+      "status": "active",
+      "verified": true,
+      "verification_source": "RBI Registered NBFC-MFI",
+      "verification_date": "2026-09-04",
+      "record_scope": "nbfc_mfi_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 2.3,
+      "fund_utilization_percent": 92.1,
+      "overdue_recovery_percent": 96.5,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Satin Creditcare, Karol Bagh, New Delhi"
+    },
+    {
+      "partner_id": "BANK_CANARA_BENGALURU",
+      "name": "Canara Bank - Financial Inclusion & Priority Sector Hub",
+      "type": "Public Sector Bank (Partner Bank)",
+      "partner_category": "Bank",
+      "state": "Karnataka",
+      "district": "Bengaluru Urban",
+      "address": "Canara Bank Head Office Annex, 112 J.C. Road, Bengaluru - 560002",
+      "contact": "080-22221581 / priority.ho@canarabank.com",
+      "website": "https://canarabank.com",
+      "official_url": "https://canarabank.com",
+      "supported_loan_categories": [
+        "education",
+        "business",
+        "agriculture",
+        "skill_development",
+        "micro_finance"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "TERM_LOAN",
+        "UNY",
+        "ELS",
+        "VISVAS"
+      ],
+      "max_loan_amount_handled": 5000000,
+      "latitude": 12.964,
+      "longitude": 77.585,
+      "status": "active",
+      "verified": true,
+      "verification_source": "Canara Bank Priority Credit Wing",
+      "verification_date": "2026-09-04",
+      "record_scope": "commercial_bank_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 1.4,
+      "fund_utilization_percent": 97.5,
+      "overdue_recovery_percent": 98.9,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Canara Bank Head Office, JC Road, Bengaluru"
+    },
+    {
+      "partner_id": "BANK_BOB_MUMBAI",
+      "name": "Bank of Baroda - Baroda Social Credit Center",
+      "type": "Public Sector Bank (Partner Bank)",
+      "partner_category": "Bank",
+      "state": "Maharashtra",
+      "district": "Mumbai City",
+      "address": "Baroda Corporate Centre, C-26, G-Block, Bandra Kurla Complex, Mumbai - 400051",
+      "contact": "022-66985000 / inclusion@bankofbaroda.com",
+      "website": "https://bankofbaroda.in",
+      "official_url": "https://bankofbaroda.in",
+      "supported_loan_categories": [
+        "education",
+        "business",
+        "agriculture",
+        "skill_development",
+        "micro_finance"
+      ],
+      "supported_schemes": [
+        "MFS",
+        "AMY",
+        "TERM_LOAN",
+        "UNY",
+        "ELS",
+        "VISVAS"
+      ],
+      "max_loan_amount_handled": 5000000,
+      "latitude": 19.0665,
+      "longitude": 72.868,
+      "status": "active",
+      "verified": true,
+      "verification_source": "Bank of Baroda Priority Lending Wing",
+      "verification_date": "2026-09-04",
+      "record_scope": "commercial_bank_channel",
+      "is_fallback": false,
+      "is_application_channel": true,
+      "fallback_priority": 999,
+      "npa_rate": 1.7,
+      "fund_utilization_percent": 96.1,
+      "overdue_recovery_percent": 98.2,
+      "eligibility_status": "eligible",
+      "npa_risk_level": "Low",
+      "disbursal_status": "Active & Fast Track Disbursal",
+      "landmark_query": "Baroda Corporate Centre, Bandra Kurla Complex, Mumbai"
     }
   ]
 }

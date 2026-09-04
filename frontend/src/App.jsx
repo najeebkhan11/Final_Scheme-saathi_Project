@@ -77,6 +77,7 @@ function AppContent() {
     () => apiCache.getSavedRecommendations().formData
   );
 
+  const [selectedSchemeForPartner, setSelectedSchemeForPartner] = useState("");
   const [aiInitialQuery, setAiInitialQuery] = useState("");
 
   // Pre-warm locations in memory during idle time
@@ -156,6 +157,10 @@ function AppContent() {
             <ExploreSchemes
               onBack={() => setView("home")}
               onLogin={() => setView("login")}
+              onLocatePartner={(schemeCode) => {
+                setSelectedSchemeForPartner(schemeCode);
+                setView("partner_locator");
+              }}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
               onLogout={handleLogout}
@@ -208,6 +213,7 @@ function AppContent() {
               initialState={lastSchemeFormData?.state}
               initialDistrict={lastSchemeFormData?.district}
               initialSchemeId={
+                selectedSchemeForPartner ||
                 lastSchemeResults?.primary?.eligible?.[0]?.scheme_id ||
                 lastSchemeResults?.primary?.eligible?.[0]?.id ||
                 lastSchemeResults?.primary?.eligible?.[0]?.code

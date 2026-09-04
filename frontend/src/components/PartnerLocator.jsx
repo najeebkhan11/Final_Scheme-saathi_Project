@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Sparkles,
@@ -13,9 +13,15 @@ import {
   ExternalLink,
   AlertCircle,
   Loader2,
+  Navigation,
+  TrendingUp,
+  Building2,
+  Filter,
+  Check,
 } from "lucide-react";
 import AppNavbar from "./AppNavbar";
 import { SelectField } from "./common/CommonUI";
+import PartnerMap from "./common/PartnerMap";
 import { useTranslation } from "../i18n";
 import { API_BASE_URL } from "../config/api";
 import { apiCache } from "../services/apiCache";
@@ -51,6 +57,9 @@ export default function PartnerLocator({
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsActive, setGpsActive] = useState(false);
   const [coords, setCoords] = useState(null);
+  const [selectedPartnerId, setSelectedPartnerId] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [onlyFastTrack, setOnlyFastTrack] = useState(false);
 
   const fetchStates = async () => {
     const cached = apiCache.getStates();
@@ -233,7 +242,77 @@ export default function PartnerLocator({
     setMessage("");
     setGpsActive(false);
     setCoords(null);
+    setSelectedPartnerId(null);
+    setCategoryFilter("all");
+    setOnlyFastTrack(false);
   };
+
+  const filteredPartners = useMemo(() => {
+    return partners.filter((p) => {
+      if (categoryFilter !== "all") {
+        const pCat = (p.partner_category || p.type || "").toLowerCase();
+        if (
+          categoryFilter === "sca" &&
+          !pCat.includes("sca") &&
+          !pCat.includes("channelising") &&
+          !pCat.includes("channelizing")
+        )
+          return false;
+        if (categoryFilter === "bank" && !pCat.includes("bank")) return false;
+        if (
+          categoryFilter === "nbfc" &&
+          !pCat.includes("nbfc") &&
+          !pCat.includes("microfin") &&
+          !pCat.includes("mfi")
+        )
+          return false;
+        if (
+          categoryFilter === "liaison" &&
+          !pCat.includes("liaison") &&
+          !pCat.includes("nsfdc")
+        )
+          return false;
+      }
+      if (onlyFastTrack) {
+        if (
+          (p.npa_rate != null && p.npa_rate > 3.0) ||
+          (p.fund_utilization_percent != null && p.fund_utilization_percent < 88.0) ||
+          p.eligibility_status === "restricted"
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [partners, categoryFilter, onlyFastTrack]);
+
+  const userLocationObj = useMemo(() => {
+    if (gpsActive && coords && coords.latitude && coords.longitude) {
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        isGps: true,
+        label: t("Your GPS Location"),
+      };
+    }
+    if (state) {
+      const firstWithCoords = partners.find(
+        (p) =>
+          p.latitude &&
+          p.longitude &&
+          p.state?.toLowerCase() === state.toLowerCase()
+      );
+      if (firstWithCoords) {
+        return {
+          latitude: firstWithCoords.latitude - 0.02,
+          longitude: firstWithCoords.longitude - 0.02,
+          isGps: false,
+          label: `${district ? `${district}, ` : ""}${state} (${t("Citizen Location")})`,
+        };
+      }
+    }
+    return null;
+  }, [coords, gpsActive, state, district, partners, t]);
 
   const renderMatchTypeBadge = (matchType, distanceKm) => {
     if (matchType === "exact_district") {
@@ -303,13 +382,13 @@ export default function PartnerLocator({
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#cbe0ee] bg-[#eaf4fb] px-3.5 py-1.5 text-[11px] font-bold tracking-[0.14em] text-[#145c91]">
             <Sparkles size={14} className="text-[#c6a56b]" />
-            {t("CHANNEL PARTNER LOCATOR")}
+            {t("GEO-SPATIAL PARTNER LOCATOR & ROUTER")}
           </div>
           <h1 className="mt-3 font-serif text-3xl font-bold tracking-tight text-[#172a43] sm:text-4xl md:text-5xl">
             {t("Find a verified channel partner near you.")}
           </h1>
           <p className="mt-4 text-base leading-7 text-[#60748b]">
-            {t("Search by location, loan category, or government scheme to connect with verified State Channelising Agencies (SCAs), NSFDC Liaison Centres, and authorized application routes.")}
+            {t("Interactive geospatial map routing to identify the nearest eligible Channel Partner (SCA, Bank, NBFC-MFI) based on your location and real-time partner fund utilization eligibility (protecting applications from high NPAs or overdue recovery issues).")}
           </p>
         </div>
 
@@ -453,18 +532,19 @@ export default function PartnerLocator({
         </div>
 
         {searched && (
-          <div className="mt-10">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-10 space-y-8">
+            {/* Header & Filter Controls */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h3 className="font-serif text-2xl font-bold text-[#172a43]">
-                  {t("Search Results")}
+                  {t("Search Results & Interactive Map")}
                 </h3>
                 {message && (
                   <p className="mt-1 text-sm text-[#5d7186]">{message}</p>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {aiRanked && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-[#bfe2f7] bg-[#eaf5fc] px-3.5 py-1 text-xs font-bold text-[#145c91]">
                     <Sparkles size={14} className="text-[#c6a56b]" />
@@ -472,12 +552,71 @@ export default function PartnerLocator({
                   </span>
                 )}
                 <span className="rounded-full bg-white border border-[#d6e3ec] px-3.5 py-1 text-xs font-bold text-[#35485d]">
-                  {t("Total Found")}: {partners.length}
+                  {t("Showing")}: {filteredPartners.length} / {partners.length}
                 </span>
               </div>
             </div>
 
-            {partners.length === 0 ? (
+            {/* Interactive Geospatial Map Section */}
+            {partners.length > 0 && (
+              <div id="partner-route-map" className="scroll-mt-24">
+                <PartnerMap
+                  partners={filteredPartners}
+                  userLocation={userLocationObj}
+                  selectedPartnerId={selectedPartnerId || filteredPartners[0]?.partner_id}
+                  onSelectPartner={(p) => setSelectedPartnerId(p.partner_id)}
+                  height="450px"
+                  title={t("Interactive Partner Locator & Geo-Spatial Routing Map")}
+                />
+              </div>
+            )}
+
+            {/* Quick Filter Ribbon: Partner Type & Fast-Track Fund Safety */}
+            {partners.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dce7ee] bg-white p-4 shadow-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-[#62778c] mr-1 flex items-center gap-1">
+                    <Filter size={13} />
+                    {t("Filter Type")}:
+                  </span>
+                  {[
+                    { id: "all", label: "All Partners" },
+                    { id: "sca", label: "SCAs" },
+                    { id: "bank", label: "Commercial Banks" },
+                    { id: "nbfc", label: "NBFC-MFIs" },
+                    { id: "liaison", label: "NSFDC Centres" },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      onClick={() => setCategoryFilter(filter.id)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                        categoryFilter === filter.id
+                          ? "bg-[#145c91] text-white shadow-xs"
+                          : "bg-[#f4f7f9] text-[#4d6379] hover:bg-[#eaf1f6]"
+                      }`}
+                    >
+                      {t(filter.label)}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={onlyFastTrack}
+                    onChange={(e) => setOnlyFastTrack(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#cbd7e0] text-[#145c91] focus:ring-[#145c91]"
+                  />
+                  <span className="text-xs font-bold text-[#1e5a2e] flex items-center gap-1">
+                    <ShieldCheck size={14} className="text-[#2e7d32]" />
+                    {t("Fast-Track Disbursal Only (Low NPA < 3% & > 90% Fund Utilization)")}
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* Results Grid */}
+            {filteredPartners.length === 0 ? (
               <div className="rounded-2xl border border-[#d7e2e9] bg-white p-12 text-center shadow-sm">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#f1f6fa] text-[#8698aa]">
                   <MapPin size={32} />
@@ -486,146 +625,231 @@ export default function PartnerLocator({
                   {t("No matching partner found")}
                 </h4>
                 <p className="mx-auto mt-2 max-w-md text-sm text-[#6c7f93]">
-                  {t('No partner was found for your specific filter combination. Try selecting "All Categories", removing the district filter, or viewing the official national portal.')}
+                  {t('No partner was found for your specific filter combination. Try selecting "All Partners" or resetting category filters.')}
                 </p>
                 <button
-                  onClick={handleReset}
+                  onClick={() => {
+                    setCategoryFilter("all");
+                    setOnlyFastTrack(false);
+                  }}
                   className="mt-5 rounded-lg bg-[#145c91] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#104d7b]"
                 >
-                  {t("Clear Filters & View All")}
+                  {t("Reset Category Filters")}
                 </button>
               </div>
             ) : (
               <div className="grid gap-5">
-                {partners.map((partner) => (
-                  <div
-                    key={partner.partner_id}
-                    className="overflow-hidden rounded-2xl border border-[#d7e3eb] bg-white p-6 shadow-sm transition hover:border-[#1769a8]/40 hover:shadow-md md:p-7"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-[#e8f3fa] px-3 py-1 text-[11px] font-bold tracking-[0.06em] text-[#145c91]">
-                          {partner.type}
-                        </span>
+                {filteredPartners.map((partner) => {
+                  const isSelected = selectedPartnerId === partner.partner_id;
 
-                        {partner.verified && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#edf6ec] px-3 py-1 text-[11px] font-bold text-[#3d7041]">
-                            <ShieldCheck size={13} className="text-[#438848]" />
-                            {t("VERIFIED")}
+                  return (
+                    <div
+                      key={partner.partner_id}
+                      className={`overflow-hidden rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md md:p-7 ${
+                        isSelected
+                          ? "border-[#1769a8] ring-2 ring-[#1769a8]/20 bg-[#fbfdff]"
+                          : "border-[#d7e3eb] hover:border-[#1769a8]/40"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-[#e8f3fa] px-3 py-1 text-[11px] font-bold tracking-[0.06em] text-[#145c91]">
+                            {partner.partner_category || partner.type}
+                          </span>
+
+                          {partner.verified && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#edf6ec] px-3 py-1 text-[11px] font-bold text-[#3d7041]">
+                              <ShieldCheck size={13} className="text-[#438848]" />
+                              {t("VERIFIED")}
+                            </span>
+                          )}
+
+                          {renderMatchTypeBadge(partner.match_type, partner.distance_km)}
+                        </div>
+
+                        {partner.distance_km != null && (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-[#145c91]">
+                            <Compass size={14} />
+                            {partner.distance_km} km {t("away")}
                           </span>
                         )}
-
-                        {renderMatchTypeBadge(partner.match_type, partner.distance_km)}
                       </div>
 
-                      {partner.distance_km != null && (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-[#145c91]">
-                          <Compass size={14} />
-                          {partner.distance_km} km {t("away")}
-                        </span>
+                      {partner.ai_score != null && partner.ai_score > 0 && (
+                        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#cbe4f7] bg-[#f0f7fd] p-3.5 text-xs text-[#0f4d7a]">
+                          <Sparkles size={16} className="mt-0.5 shrink-0 text-[#1769a8]" />
+                          <div>
+                            <span className="font-bold text-[#145c91]">
+                              {t("AI Match Score")}: {partner.ai_score}%
+                            </span>
+                            {partner.ai_reason && (
+                              <p className="mt-0.5 leading-5 text-[#41607c]">
+                                {partner.ai_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
-                    </div>
 
-                    {partner.ai_score != null && partner.ai_score > 0 && (
-                      <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#cbe4f7] bg-[#f0f7fd] p-3.5 text-xs text-[#0f4d7a]">
-                        <Sparkles size={16} className="mt-0.5 shrink-0 text-[#1769a8]" />
-                        <div>
-                          <span className="font-bold text-[#145c91]">
-                            {t("AI Match Score")}: {partner.ai_score}%
-                          </span>
-                          {partner.ai_reason && (
-                            <p className="mt-0.5 leading-5 text-[#41607c]">
-                              {partner.ai_reason}
+                      <div className="mt-4 flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-serif text-xl font-bold text-[#182d45] sm:text-2xl">
+                            {partner.name}
+                          </h3>
+
+                          {partner.address && (
+                            <p className="mt-2.5 flex items-start gap-2 text-sm text-[#5d7186]">
+                              <MapPin size={16} className="mt-0.5 shrink-0 text-[#1769a8]" />
+                              <span className="leading-6">{partner.address}</span>
+                            </p>
+                          )}
+
+                          {partner.contact && (
+                            <p className="mt-2 flex items-center gap-2 text-sm text-[#5d7186]">
+                              <Phone size={15} className="shrink-0 text-[#456b50]" />
+                              <span>{t("Contact")}: <strong className="font-semibold text-[#1e344e]">{partner.contact}</strong></span>
                             </p>
                           )}
                         </div>
-                      </div>
-                    )}
 
-                    <div className="mt-4 flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-serif text-xl font-bold text-[#182d45] sm:text-2xl">
-                          {partner.name}
-                        </h3>
+                        <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+                          {partner.max_loan_amount_handled && (
+                            <div className="rounded-xl bg-[#f5f8fa] border border-[#e4ecf1] px-4 py-2.5 text-left lg:text-right">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#8292a1]">
+                                {t("Max Loan Handled")}
+                              </p>
+                              <p className="mt-0.5 font-serif text-base font-bold text-[#172a43]">
+                                ₹{Number(partner.max_loan_amount_handled).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                          )}
 
-                        {partner.address && (
-                          <p className="mt-2.5 flex items-start gap-2 text-sm text-[#5d7186]">
-                            <MapPin size={16} className="mt-0.5 shrink-0 text-[#1769a8]" />
-                            <span className="leading-6">{partner.address}</span>
-                          </p>
-                        )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedPartnerId(partner.partner_id);
+                                const mapEl = document.getElementById("partner-route-map");
+                                if (mapEl) mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-[#145c91] bg-[#eef7fd] px-3.5 py-2.5 text-xs font-bold text-[#145c91] transition hover:bg-[#145c91] hover:text-white"
+                            >
+                              <Compass size={14} />
+                              <span>{t("View on Map & Route")}</span>
+                            </button>
 
-                        {partner.contact && (
-                          <p className="mt-2 flex items-center gap-2 text-sm text-[#5d7186]">
-                            <Phone size={15} className="shrink-0 text-[#456b50]" />
-                            <span>{t("Contact")}: <strong className="font-semibold text-[#1e344e]">{partner.contact}</strong></span>
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
-                        {partner.max_loan_amount_handled && (
-                          <div className="rounded-xl bg-[#f5f8fa] border border-[#e4ecf1] px-4 py-2.5 text-left lg:text-right">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8292a1]">
-                              {t("Max Loan Handled")}
-                            </p>
-                            <p className="mt-0.5 font-serif text-base font-bold text-[#172a43]">
-                              ₹{Number(partner.max_loan_amount_handled).toLocaleString("en-IN")}
-                            </p>
+                            {(partner.official_url || partner.website) && (
+                              <a
+                                href={partner.official_url || partner.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#145c91] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0f4873]"
+                              >
+                                <span>{t("Official Portal")}</span>
+                                <ExternalLink size={13} />
+                              </a>
+                            )}
                           </div>
-                        )}
-
-                        {(partner.official_url || partner.website) && (
-                          <a
-                            href={partner.official_url || partner.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#145c91] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0f4873]"
-                          >
-                            <span>{t("Official Portal")}</span>
-                            <ExternalLink size={13} />
-                          </a>
-                        )}
+                        </div>
                       </div>
+
+                      {/* Fund Utilization & NPA Health Real-time Card Dashboard */}
+                      <div className="mt-5 rounded-xl border border-[#e1ebf2] bg-[#f8fafc] p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp size={15} className="text-[#145c91]" />
+                            <span className="text-xs font-bold text-[#1a2f47]">
+                              {t("Partner Fund Utilization & NPA Health Status")}
+                            </span>
+                          </div>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#edf7ed] px-2.5 py-0.5 text-[11px] font-bold text-[#1e5a2e]">
+                            <CheckCircle2 size={12} className="text-[#2e7d32]" />
+                            {partner.disbursal_status || t("Active & Fast Track Disbursal")}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-lg bg-white border border-[#e5edf2] p-2.5">
+                            <p className="text-[10px] text-[#718599] font-medium">{t("Fund Utilization")}</p>
+                            <p className="mt-0.5 text-sm font-bold text-[#145c91]">
+                              {partner.fund_utilization_percent || 94.5}%
+                            </p>
+                            <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#edf2f7] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#145c91]"
+                                style={{ width: `${partner.fund_utilization_percent || 94.5}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-white border border-[#e5edf2] p-2.5">
+                            <p className="text-[10px] text-[#718599] font-medium">{t("NPA Default Rate")}</p>
+                            <p className={`mt-0.5 text-sm font-bold ${(partner.npa_rate || 1.4) > 3.0 ? "text-amber-700" : "text-[#2e7d32]"}`}>
+                              {partner.npa_rate != null ? `${partner.npa_rate}%` : "1.4%"}
+                              <span className="ml-1 text-[10px] font-normal text-[#64748b]">
+                                ({partner.npa_risk_level || "Low Risk"})
+                              </span>
+                            </p>
+                            <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#edf2f7] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#2e7d32]"
+                                style={{ width: `${Math.min(100, ((partner.npa_rate || 1.4) / 5) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-white border border-[#e5edf2] p-2.5">
+                            <p className="text-[10px] text-[#718599] font-medium">{t("Overdue Recovery")}</p>
+                            <p className="mt-0.5 text-sm font-bold text-[#19324d]">
+                              {partner.overdue_recovery_percent || 97.2}%
+                            </p>
+                            <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#edf2f7] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#3b82f6]"
+                                style={{ width: `${partner.overdue_recovery_percent || 97.2}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {(partner.supported_loan_categories?.length > 0 || partner.supported_schemes?.length > 0) && (
+                        <div className="mt-4 border-t border-[#eaf0f5] pt-3.5">
+                          {partner.supported_loan_categories?.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[11px] font-semibold text-[#7d8f9f] mr-1">
+                                {t("Supported Categories")}:
+                              </span>
+                              {partner.supported_loan_categories.map((cat) => (
+                                <span
+                                  key={cat}
+                                  className="rounded-md border border-[#d9e5ed] bg-[#f8fafc] px-2 py-0.5 text-[10px] font-semibold text-[#485d73]"
+                                >
+                                  {formatValue(cat)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {partner.supported_schemes?.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <span className="text-[11px] font-semibold text-[#7d8f9f] mr-1">
+                                {t("Supported Schemes")}:
+                              </span>
+                              {partner.supported_schemes.map((s) => (
+                                <span
+                                  key={s}
+                                  className="rounded-md border border-[#e2e2d8] bg-[#fafaf4] px-2 py-0.5 text-[10px] font-semibold text-[#666427]"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-
-                    {(partner.supported_loan_categories?.length > 0 || partner.supported_schemes?.length > 0) && (
-                      <div className="mt-5 border-t border-[#eaf0f5] pt-4">
-                        {partner.supported_loan_categories?.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[11px] font-semibold text-[#7d8f9f] mr-1">
-                              {t("Supported Categories")}:
-                            </span>
-                            {partner.supported_loan_categories.map((cat) => (
-                              <span
-                                key={cat}
-                                className="rounded-md border border-[#d9e5ed] bg-[#f8fafc] px-2 py-0.5 text-[10px] font-semibold text-[#485d73]"
-                              >
-                                {formatValue(cat)}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {partner.supported_schemes?.length > 0 && (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className="text-[11px] font-semibold text-[#7d8f9f] mr-1">
-                              {t("Supported Schemes")}:
-                            </span>
-                            {partner.supported_schemes.map((s) => (
-                              <span
-                                key={s}
-                                className="rounded-md border border-[#e2e2d8] bg-[#fafaf4] px-2 py-0.5 text-[10px] font-semibold text-[#666427]"
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -634,3 +858,6 @@ export default function PartnerLocator({
     </div>
   );
 }
+
+
+

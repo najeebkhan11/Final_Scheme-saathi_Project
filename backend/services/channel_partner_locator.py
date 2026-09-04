@@ -43,19 +43,22 @@ MAX_NEARBY_DISTANCE_KM = 300
 # ============================================================
 
 _PARTNERS_CACHE: list[dict[str, Any]] | None = None
+_PARTNERS_FILE_MTIME: float = 0.0
 
 
 def load_partners() -> list[dict[str, Any]]:
-    """Load channel partners from JSON safely with in-memory caching."""
-    global _PARTNERS_CACHE
-    if _PARTNERS_CACHE is not None:
-        return _PARTNERS_CACHE
+    """Load channel partners from JSON safely with auto-refresh on file change."""
+    global _PARTNERS_CACHE, _PARTNERS_FILE_MTIME
 
     if not PARTNER_FILE.exists():
         print(f"WARNING: Partner data file not found: {PARTNER_FILE}")
         return []
 
     try:
+        current_mtime = PARTNER_FILE.stat().st_mtime
+        if _PARTNERS_CACHE is not None and _PARTNERS_FILE_MTIME == current_mtime:
+            return _PARTNERS_CACHE
+
         with open(PARTNER_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
 
@@ -65,15 +68,16 @@ def load_partners() -> list[dict[str, Any]]:
             return []
 
         _PARTNERS_CACHE = partners
+        _PARTNERS_FILE_MTIME = current_mtime
         return _PARTNERS_CACHE
 
     except json.JSONDecodeError as error:
         print(f"ERROR: Invalid channel_partners.json: {error}")
-        return []
+        return _PARTNERS_CACHE or []
 
     except Exception as error:
         print(f"ERROR loading channel partners: {error}")
-        return []
+        return _PARTNERS_CACHE or []
 
 
 # ============================================================
@@ -341,8 +345,12 @@ def supports_category(
 
 def get_eligible_partners(
     partners: list[dict[str, Any]],
-    scheme_id: str | None,
-    loan_category: str | None
+    scheme_id: str | None = None,
+    loan_category: str | None = None,
+    partner_category_filter: str | None = None,
+    max_npa_rate: float | None = None,
+    min_fund_utilization: float | None = None,
+    only_fast_track: bool = False,
 ) -> list[dict[str, Any]]:
 
     eligible = []
@@ -365,6 +373,33 @@ def get_eligible_partners(
             partner,
             loan_category
         ):
+            continue
+
+        # Partner Category filtering (e.g. SCA, Bank, NBFC-MFI)
+        if partner_category_filter and partner_category_filter.lower() not in ("all", ""):
+            p_cat = normalize(partner.get("partner_category", partner.get("type", "")))
+            req_cat = normalize(partner_category_filter)
+            if req_cat not in p_cat and p_cat not in req_cat:
+                continue
+
+        # Fund utilization and NPA health check
+        npa = partner.get("npa_rate", 0.0)
+        fund_util = partner.get("fund_utilization_percent", 100.0)
+        elig_status = normalize(partner.get("eligibility_status", "eligible"))
+
+        if only_fast_track:
+            # Fast-track requires low NPA (<= 3.0%) and high fund utilization (>= 88.0%)
+            if npa is not None and npa > 3.0:
+                continue
+            if fund_util is not None and fund_util < 88.0:
+                continue
+            if elig_status == "restricted":
+                continue
+
+        if max_npa_rate is not None and npa is not None and npa > max_npa_rate:
+            continue
+
+        if min_fund_utilization is not None and fund_util is not None and fund_util < min_fund_utilization:
             continue
 
         eligible.append(partner)
@@ -417,6 +452,8 @@ def format_partner(
 
         "type": partner.get("type"),
 
+        "partner_category": partner.get("partner_category") or partner.get("type"),
+
         "state": partner.get("state"),
 
         "district": partner.get("district"),
@@ -451,6 +488,9 @@ def format_partner(
 
         "longitude":
             partner.get("longitude"),
+
+        "landmark_query":
+            partner.get("landmark_query"),
 
         "distance_km":
             round(distance_km, 2)
@@ -489,6 +529,42 @@ def format_partner(
             partner.get(
                 "fallback_priority",
                 999
+            ),
+
+        "npa_rate":
+            partner.get(
+                "npa_rate",
+                1.5
+            ),
+
+        "fund_utilization_percent":
+            partner.get(
+                "fund_utilization_percent",
+                94.0
+            ),
+
+        "overdue_recovery_percent":
+            partner.get(
+                "overdue_recovery_percent",
+                97.0
+            ),
+
+        "eligibility_status":
+            partner.get(
+                "eligibility_status",
+                "eligible"
+            ),
+
+        "npa_risk_level":
+            partner.get(
+                "npa_risk_level",
+                "Low"
+            ),
+
+        "disbursal_status":
+            partner.get(
+                "disbursal_status",
+                "Active & Fast Track Disbursal"
             ),
 
         "match_type":
@@ -555,9 +631,13 @@ def find_channel_partners(
     district: str | None = None,
     scheme_id: str | None = None,
     loan_category: str | None = None,
-    max_results: int = 5,
+    max_results: int = 10,
     user_lat: float | None = None,
-    user_lon: float | None = None
+    user_lon: float | None = None,
+    partner_category: str | None = None,
+    max_npa_rate: float | None = None,
+    min_fund_utilization: float | None = None,
+    only_fast_track: bool = False,
 ) -> dict[str, Any]:
 
     """
@@ -579,11 +659,11 @@ def find_channel_partners(
         TypeError,
         ValueError
     ):
-        max_results = 5
+        max_results = 10
 
     max_results = max(
         1,
-        min(max_results, 10)
+        min(max_results, 25)
     )
 
     if not partners:
@@ -602,8 +682,12 @@ def find_channel_partners(
 
     eligible_partners = get_eligible_partners(
         partners,
-        scheme_id,
-        loan_category
+        scheme_id=scheme_id,
+        loan_category=loan_category,
+        partner_category_filter=partner_category,
+        max_npa_rate=max_npa_rate,
+        min_fund_utilization=min_fund_utilization,
+        only_fast_track=only_fast_track,
     )
 
     if not eligible_partners:
