@@ -37,6 +37,7 @@ export default function AppNavbar({
       { id: "partner_locator", label: t("Partner Locator") },
       { id: "documents", label: t("Documents") },
       { id: "track_application", label: t("Track Application") },
+      { id: "admin_portal", label: t("Author Desk") },
       { id: "ai_assistant", label: t("AI Assistant") },
     ],
     [t]

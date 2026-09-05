@@ -17,6 +17,7 @@ const AIAssistant = lazy(() => import("./components/AIAssistant"));
 const DocumentsPage = lazy(() => import("./components/DocumentsPage"));
 const TrackApplication = lazy(() => import("./components/TrackApplication"));
 const RecommendationsPage = lazy(() => import("./components/RecommendationsPage"));
+const AdminPortal = lazy(() => import("./components/AdminPortal"));
 
 // Preload remaining views during browser idle time
 if (typeof window !== "undefined") {
@@ -258,6 +259,13 @@ function AppContent() {
                 if (query) setAiInitialQuery(query);
                 setView(page);
               }}
+            />
+          )}
+
+          {view === "admin_portal" && (
+            <AdminPortal
+              onBack={() => setView("home")}
+              onNavigate={(page) => setView(page)}
             />
           )}
 

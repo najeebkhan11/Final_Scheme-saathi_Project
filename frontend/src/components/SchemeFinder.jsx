@@ -68,45 +68,59 @@ export default function SchemeFinder({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // Auto-hydrate saved profile from SQLite if user is logged in
-  useEffect(() => {
-    const token = localStorage.getItem("scheme_saathi_token");
-    if (!token) return;
-
-    fetch(`${API_BASE_URL}/api/auth/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.profile) {
-          const p = data.profile;
-          setFormData((prev) => ({
-            ...prev,
-            fullName: p.fullName || (data.user?.name || prev.fullName),
-            age: p.age || prev.age,
-            gender: p.gender || prev.gender,
-            category: p.category || prev.category,
-            state: p.state || prev.state,
-            district: p.district || prev.district,
-            annualIncome: p.annualIncome || (p.annual_income != null ? String(p.annual_income) : prev.annualIncome),
-            purpose: p.purpose || prev.purpose,
-            businessType: p.businessType || p.business_type || prev.businessType,
-            projectStage: p.projectStage || p.project_stage || prev.projectStage,
-            projectCost: p.projectCost || (p.project_cost != null ? String(p.project_cost) : prev.projectCost),
-            requiredLoan: p.requiredLoan || (p.required_loan != null ? String(p.required_loan) : prev.requiredLoan),
-            course: p.course || prev.course,
-            institution: p.institution || prev.institution,
-            courseFee: p.courseFee || (p.course_fee != null ? String(p.course_fee) : prev.courseFee),
-            educationLevel: p.educationLevel || p.education_level || prev.educationLevel,
-            ownContribution: p.ownContribution || (p.own_contribution != null ? String(p.own_contribution) : prev.ownContribution),
-            existingLoan: p.existingLoan || p.existing_loan || prev.existingLoan,
-            outstandingAmount: p.outstandingAmount || (p.outstanding_amount != null ? String(p.outstanding_amount) : prev.outstandingAmount),
-            overdue: p.overdue || prev.overdue,
-          }));
-        }
-      })
-      .catch(() => {});
-  }, [isLoggedIn]);
+  // Check if all required entries for the given step are completed by the user
+  const isStepComplete = (stepNumber) => {
+    if (stepNumber === 1) {
+      const ageNum = Number(formData.age);
+      const incomeNum = Number(formData.annualIncome);
+      return Boolean(
+        formData.fullName && formData.fullName.trim() &&
+        formData.age && !isNaN(ageNum) && ageNum >= 18 && ageNum <= 100 &&
+        formData.gender &&
+        formData.category &&
+        formData.state &&
+        formData.district &&
+        formData.annualIncome !== "" && formData.annualIncome !== null && !isNaN(incomeNum) && incomeNum >= 0
+      );
+    }
+    if (stepNumber === 2) {
+      return Boolean(formData.purpose);
+    }
+    if (stepNumber === 3) {
+      if (formData.purpose === "education") {
+        const feeNum = Number(formData.courseFee);
+        return Boolean(
+          formData.educationLevel &&
+          formData.course && formData.course.trim() &&
+          formData.institution && formData.institution.trim() &&
+          formData.courseFee !== "" && !isNaN(feeNum) && feeNum > 0
+        );
+      }
+      const costNum = Number(formData.projectCost);
+      const loanNum = Number(formData.requiredLoan);
+      return Boolean(
+        formData.businessType &&
+        formData.projectStage &&
+        formData.projectCost !== "" && !isNaN(costNum) && costNum > 0 &&
+        formData.requiredLoan !== "" && !isNaN(loanNum) && loanNum > 0 && loanNum <= costNum
+      );
+    }
+    if (stepNumber === 4) {
+      const ownNum = Number(formData.ownContribution);
+      if (formData.ownContribution === "" || isNaN(ownNum) || ownNum < 0) return false;
+      if (!formData.existingLoan) return false;
+      if (formData.existingLoan === "yes") {
+        const outNum = Number(formData.outstandingAmount);
+        if (formData.outstandingAmount === "" || isNaN(outNum) || outNum < 0) return false;
+        if (!formData.overdue) return false;
+      }
+      return true;
+    }
+    if (stepNumber === 5) {
+      return isStepComplete(1) && isStepComplete(2) && isStepComplete(3) && isStepComplete(4);
+    }
+    return true;
+  };
 
   const updateField = (field, value) => {
     setFormData((current) => ({
@@ -209,9 +223,10 @@ export default function SchemeFinder({
   };
 
   const nextStep = () => {
+    const isComplete = isStepComplete(step);
     const isValid = validateStep(step);
-    if (!isValid) {
-      setError("Please fill in all required fields accurately before continuing.");
+    if (!isComplete || !isValid) {
+      setError("Please complete all required fields on this page before moving to the next step.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -573,7 +588,18 @@ export default function SchemeFinder({
             {step < 5 ? (
               <button
                 onClick={nextStep}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#145c91] px-7 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#104d7b]"
+                disabled={!isStepComplete(step)}
+                title={
+                  !isStepComplete(step)
+                    ? "Please complete all required fields on this page to continue"
+                    : "Continue to next step"
+                }
+                className={[
+                  "flex items-center justify-center gap-2 rounded-lg px-7 py-3.5 text-sm font-bold shadow-md transition",
+                  !isStepComplete(step)
+                    ? "cursor-not-allowed bg-[#cfdbe3] text-[#718596] shadow-none"
+                    : "bg-[#145c91] text-white hover:bg-[#104d7b]",
+                ].join(" ")}
               >
                 Continue
                 <ArrowRight size={17} />
@@ -581,12 +607,17 @@ export default function SchemeFinder({
             ) : (
               <button
                 onClick={runSchemeMatching}
-                disabled={loading}
+                disabled={loading || !isStepComplete(5)}
+                title={
+                  !isStepComplete(5)
+                    ? "Please complete all required entries before submitting"
+                    : "Find My Schemes"
+                }
                 className={[
-                  "flex items-center justify-center gap-2 rounded-lg px-7 py-3.5 text-sm font-bold text-white shadow-md transition",
-                  loading
-                    ? "cursor-not-allowed bg-[#7d9aab]"
-                    : "bg-[#145c91] hover:bg-[#104d7b]",
+                  "flex items-center justify-center gap-2 rounded-lg px-7 py-3.5 text-sm font-bold shadow-md transition",
+                  loading || !isStepComplete(5)
+                    ? "cursor-not-allowed bg-[#cfdbe3] text-[#718596] shadow-none"
+                    : "bg-[#145c91] text-white hover:bg-[#104d7b]",
                 ].join(" ")}
               >
                 {loading ? (

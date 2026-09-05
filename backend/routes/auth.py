@@ -87,6 +87,13 @@ def signup(request: SignupRequest):
         )
         user_id = cursor.lastrowid
 
+    # Automatically sync new registered citizen to Excel in D:\Project-SIH\Admin_Data
+    try:
+        from services.excel_exporter import export_profiles_to_excel
+        export_profiles_to_excel()
+    except Exception:
+        pass
+
     token = create_access_token(user_id=user_id, identifier=identifier)
 
     return {
@@ -255,6 +262,13 @@ def save_profile(
                     data.get("overdue"),
                 ),
             )
+
+    # Automatically sync updated profile to Excel in D:\Project-SIH\Admin_Data
+    try:
+        from services.excel_exporter import export_profiles_to_excel
+        export_profiles_to_excel()
+    except Exception:
+        pass
 
     return {
         "status": "success",

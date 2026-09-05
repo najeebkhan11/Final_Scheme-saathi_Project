@@ -46,6 +46,7 @@ from routes.channel_partner import router as partner_router
 from routes.locations import router as locations_router
 from routes.applications import router as applications_router
 from routes.documents import router as documents_router
+from routes.admin import router as admin_router
 
 
 # ============================================================
@@ -170,6 +171,8 @@ app.include_router(locations_router)
 app.include_router(applications_router)
  
 app.include_router(documents_router)
+
+app.include_router(admin_router)
 
 
 # ============================================================

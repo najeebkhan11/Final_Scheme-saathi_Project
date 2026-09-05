@@ -12,10 +12,15 @@ import {
   Bot,
   Printer,
   FileText,
+  Package,
+  User,
+  ArrowRight,
+  ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
-import { PRESET_SAMPLE_APPLICATIONS, STAGES_MASTER } from "../data/schemesConstants";
+import { STAGES_MASTER } from "../data/schemesConstants";
 import { API_BASE_URL } from "../config/api";
 
 export default function TrackApplication({
@@ -27,8 +32,12 @@ export default function TrackApplication({
 }) {
   const { t } = useTranslation();
   const [applicationId, setApplicationId] = useState(initialApplicationId || "");
+  const [applicantName, setApplicantName] = useState("");
+  const [mobileInput, setMobileInput] = useState("");
+  const [searchTab, setSearchTab] = useState("id"); // "id" | "details"
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(() => PRESET_SAMPLE_APPLICATIONS["SS-2026-MFS-8492"]);
+  const [status, setStatus] = useState(null);
+  const [searchError, setSearchError] = useState("");
   const [copied, setCopied] = useState(false);
   const [myApplications, setMyApplications] = useState([]);
   const [recentSearches, setRecentSearches] = useState(() => {
@@ -65,6 +74,7 @@ export default function TrackApplication({
   }, [initialApplicationId]);
 
   const saveRecent = (id) => {
+    if (!id) return;
     setRecentSearches((prev) => {
       const filtered = prev.filter((item) => item !== id);
       const updated = [id, ...filtered].slice(0, 5);
@@ -81,12 +91,15 @@ export default function TrackApplication({
   };
 
   const trackId = async (inputVal) => {
-    const id = (inputVal || applicationId).trim();
-    if (!id) return;
+    const id = (inputVal !== undefined ? inputVal : applicationId).trim();
+    if (!id) {
+      setSearchError("Please enter your Application ID or registered mobile number.");
+      return;
+    }
     setLoading(true);
+    setSearchError("");
 
     try {
-      // 1. Try Backend API first
       const res = await fetch(
         `${API_BASE_URL}/api/applications/track/${encodeURIComponent(id)}`
       );
@@ -94,127 +107,96 @@ export default function TrackApplication({
         const data = await res.json();
         if (data?.application) {
           setStatus(data.application);
-          saveRecent(id);
+          saveRecent(data.application.application_id);
+          setLoading(false);
+          // Scroll down to tracker
+          setTimeout(() => {
+            const el = document.getElementById("application-tracker-view");
+            if (el) el.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+          return;
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        const msg =
+          errData?.detail ||
+          `No application found for "${id}". Please check your Application ID or registered mobile number.`;
+        setSearchError(msg);
+        setStatus(null);
+      }
+    } catch {
+      // Check user localStorage applications fallback
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem("scheme_saathi_applications") || "{}"
+        );
+        const found = saved[id] || saved[id.toUpperCase()];
+        if (found) {
+          setStatus(found);
+          saveRecent(found.application_id);
           setLoading(false);
           return;
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // Backend unavailable or network issue — continue to local fallback
-    }
-
-    // 2. Check local presets
-    const upper = id.toUpperCase();
-    if (PRESET_SAMPLE_APPLICATIONS[upper]) {
-      setStatus(PRESET_SAMPLE_APPLICATIONS[upper]);
-      saveRecent(upper);
-      setLoading(false);
-      return;
-    }
-
-    // 3. Check mobile number matching
-    const digits = id.replace(/\D/g, "");
-    if (digits.length === 10) {
-      const sample = { ...PRESET_SAMPLE_APPLICATIONS["SS-2026-MFS-8492"] };
-      sample.mobile_masked = `XXXXXX${digits.slice(-4)}`;
-      setStatus(sample);
-      saveRecent(id);
-      setLoading(false);
-      return;
-    }
-
-    // 4. Check user localStorage custom applications
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem("scheme_saathi_applications") || "{}"
+      setSearchError(
+        "Unable to connect to the backend server. Please verify the backend is running on port 8000."
       );
-      if (saved[id]) {
-        setStatus(saved[id]);
-        saveRecent(id);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // ignore
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const trackByDetails = async () => {
+    const name = applicantName.trim();
+    const phone = mobileInput.trim();
+
+    if (!name && !phone) {
+      setSearchError("Please enter your Registered Mobile Number or Applicant Name.");
+      return;
     }
 
-    // 5. Generate a realistic dynamic tracking dossier for any custom ID
-    const dynamicApp = {
-      application_id: upper,
-      applicant_name: "Applicant",
-      mobile_masked: "XXXXXX" + (digits.length >= 4 ? digits.slice(-4) : "5421"),
-      scheme_id: "MFS",
-      scheme_name: "NSFDC Credit Assistance Scheme",
-      scheme_type: "PRIMARY",
-      authority: "National Scheduled Castes Finance and Development Corporation (NSFDC)",
-      loan_amount: "₹1,50,000",
-      purpose: "Self Employment Project",
-      submission_date: "28 Aug 2026",
-      last_updated: "03 Sep 2026",
-      estimated_completion: "18 Sep 2026",
-      current_stage_index: 1,
-      status_code: "IN_PROGRESS",
-      status_label: "Application Received & Under Verification",
-      status_color: "blue",
-      channel_partner: {
-        name: "State Channelizing Agency (SCA) District Office",
-        district: "Lead District Center",
-        state: "State Division",
-        office_address: "District Collectorate Complex, Administrative Wing",
-        officer_in_charge: "District Nodal Officer",
-        contact_phone: "1800-200-5566",
-        helpline: "1800-180-6000",
-      },
-      action_required:
-        "Please keep your original Aadhaar and Caste certificates ready for upcoming spot verification.",
-      official_note: `Application ${upper} has been logged in the National Beneficiary Registry. District scrutiny cell is reviewing your documents.`,
-      timeline: [
-        {
-          stage_index: 0,
-          title: "Application Submitted",
-          subtitle: "Scheme Saathi Portal",
-          date: "28 Aug 2026, 10:00 AM",
-          status: "COMPLETED",
-          remarks: `Application ${upper} registered successfully.`,
-        },
-        {
-          stage_index: 1,
-          title: "Document Verification",
-          subtitle: "District Scrutiny Cell",
-          date: "03 Sep 2026, 02:30 PM",
-          status: "IN_PROGRESS",
-          remarks: "Scrutiny of KYC and income eligibility underway.",
-        },
-        {
-          stage_index: 2,
-          title: "SCA / Channel Partner Review",
-          subtitle: "State Channelizing Agency",
-          date: "Expected: 10 Sep 2026",
-          status: "PENDING",
-          remarks: "Quota allotment and subsidy eligibility confirmation.",
-        },
-        {
-          stage_index: 3,
-          title: "Bank Credit Appraisal & Sanction",
-          subtitle: "Nominated Lending Bank",
-          date: "Expected: 14 Sep 2026",
-          status: "PENDING",
-          remarks: "Credit approval and sanction order generation.",
-        },
-        {
-          stage_index: 4,
-          title: "Disbursement & DBT Credit",
-          subtitle: "Direct Benefit Transfer",
-          date: "Expected: 18 Sep 2026",
-          status: "PENDING",
-          remarks: "Direct credit to beneficiary savings account.",
-        },
-      ],
-    };
+    setLoading(true);
+    setSearchError("");
 
-    setStatus(dynamicApp);
-    saveRecent(id);
-    setLoading(false);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/applications/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          application_id: null,
+          mobile: phone || null,
+          applicant_name: name || null,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.application) {
+          setStatus(data.application);
+          saveRecent(data.application.application_id);
+          setTimeout(() => {
+            const el = document.getElementById("application-tracker-view");
+            if (el) el.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+          return;
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        setSearchError(
+          errData?.detail ||
+            "No application found matching these details. Please verify your mobile number and name."
+        );
+        setStatus(null);
+      }
+    } catch {
+      setSearchError("Unable to search application details. Please check your connection.");
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCopyId = (text) => {
@@ -246,138 +228,206 @@ export default function TrackApplication({
         )
       }
     >
-      {/* 1. SEARCH BOX & QUICK DEMO SAMPLES */}
-      <div className="mx-auto max-w-4xl">
-        <div className="rounded-2xl border border-[#d5e1e8] bg-white p-6 shadow-sm">
-          <label className="text-xs font-bold uppercase tracking-wider text-[#566c82]">
-            {t("Track by Application ID or Mobile Number")}
-          </label>
-
-          <div className="mt-3 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8fa2b3]"
-              />
-              <input
-                value={applicationId}
-                onChange={(e) => setApplicationId(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && trackId()}
-                placeholder={t("e.g. SS-2026-MFS-8492 or 10-digit mobile number")}
-                className="w-full rounded-xl border border-[#cfdbe3] px-4 py-3.5 pl-11 text-sm font-medium text-[#172a43] outline-none transition placeholder:text-[#9bb0c1] focus:border-[#1769a8] focus:ring-2 focus:ring-[#1769a8]/10"
-              />
+      <div className="mx-auto max-w-4xl space-y-8">
+        {/* 1. SEARCH INTAKE CARD - USER ENTERS DETAILS TO TRACK */}
+        <div className="rounded-2xl border border-[#d5e1e8] bg-white p-6 md:p-8 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#edf2f6] pb-4">
+            <div>
+              <h2 className="font-serif text-lg font-bold text-[#14283e] flex items-center gap-2">
+                <Search size={20} className="text-[#1769a8]" />
+                {t("Track Your Application")}
+              </h2>
+              <p className="mt-0.5 text-xs text-[#63778a]">
+                {t("Enter your application details below to check real-time processing progress.")}
+              </p>
             </div>
 
-            <button
-              onClick={() => trackId()}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[#145c91] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-[#145c91]/20 transition hover:bg-[#104d7b] disabled:opacity-70"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>{t("Tracking...")}</span>
-                </>
-              ) : (
-                <>
-                  <Search size={16} />
-                  <span>{t("Track Status")}</span>
-                </>
-              )}
-            </button>
+            {/* Mode Tabs */}
+            <div className="flex items-center rounded-xl bg-[#f0f5fa] p-1 text-xs font-semibold text-[#546b80]">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTab("id");
+                  setSearchError("");
+                }}
+                className={`rounded-lg px-3 py-1.5 transition ${
+                  searchTab === "id"
+                    ? "bg-white text-[#145c91] font-bold shadow-sm"
+                    : "hover:text-[#172a43]"
+                }`}
+              >
+                {t("By Application ID / Mobile")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTab("details");
+                  setSearchError("");
+                }}
+                className={`rounded-lg px-3 py-1.5 transition ${
+                  searchTab === "details"
+                    ? "bg-white text-[#145c91] font-bold shadow-sm"
+                    : "hover:text-[#172a43]"
+                }`}
+              >
+                {t("By Name & Mobile")}
+              </button>
+            </div>
           </div>
 
-          {/* User's Database Applications */}
-          {myApplications.length > 0 && (
-            <div className="mt-5 border-t border-[#edf2f6] pt-4">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#145c91]">
-                <FileText size={13} />
-                {t("Your Submitted Applications (Stored in SQLite):")}
-              </p>
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                {myApplications.map((app) => {
-                  const isSelected = status?.application_id === app.application_id;
-                  return (
-                    <button
-                      key={app.application_id}
-                      onClick={() => {
-                        setApplicationId(app.application_id);
-                        trackId(app.application_id);
+          {/* Search Inputs */}
+          {searchTab === "id" ? (
+            <div className="mt-5">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#566c82]">
+                {t("Application ID or Registered Mobile Number")}
+              </label>
+              <div className="mt-2 flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8fa2b3]"
+                  />
+                  <input
+                    value={applicationId}
+                    onChange={(e) => {
+                      setApplicationId(e.target.value);
+                      if (searchError) setSearchError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && trackId()}
+                    placeholder={t("e.g. SS-2026-MFS-1285 or 10-digit mobile number")}
+                    className="w-full rounded-xl border border-[#cfdbe3] px-4 py-3.5 pl-11 text-sm font-medium text-[#172a43] outline-none transition placeholder:text-[#9bb0c1] focus:border-[#1769a8] focus:ring-2 focus:ring-[#1769a8]/10"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => trackId()}
+                  disabled={loading || !applicationId.trim()}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#145c91] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-[#145c91]/20 transition hover:bg-[#104d7b] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{t("Tracking...")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search size={16} />
+                      <span>{t("Track Status")}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#566c82]">
+                    {t("Applicant Full Name")}
+                  </label>
+                  <div className="relative mt-2">
+                    <User
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8fa2b3]"
+                    />
+                    <input
+                      value={applicantName}
+                      onChange={(e) => {
+                        setApplicantName(e.target.value);
+                        if (searchError) setSearchError("");
                       }}
-                      className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
-                        isSelected
-                          ? "border-[#145c91] bg-[#eef7fd] text-[#145c91] font-bold shadow-sm"
-                          : "border-[#cfdde7] bg-[#f8fbfe] text-[#2c4760] hover:bg-[#eef5fa]"
-                      }`}
-                    >
-                      <span className="flex h-2 w-2 rounded-full bg-[#1769a8]" />
-                      <span className="font-mono font-bold">{app.application_id}</span>
-                      <span className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-[#556b80]">
-                        {app.scheme_id || app.scheme_name}
-                      </span>
-                      <span className="text-[10px] font-medium text-[#2d7e52]">
-                        {app.status_label || "Submitted"}
-                      </span>
-                    </button>
-                  );
-                })}
+                      onKeyDown={(e) => e.key === "Enter" && trackByDetails()}
+                      placeholder={t("e.g. Ramesh Chandra")}
+                      className="w-full rounded-xl border border-[#cfdbe3] px-4 py-3.5 pl-11 text-sm font-medium text-[#172a43] outline-none transition placeholder:text-[#9bb0c1] focus:border-[#1769a8] focus:ring-2 focus:ring-[#1769a8]/10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#566c82]">
+                    {t("Registered Mobile Number")}
+                  </label>
+                  <div className="relative mt-2">
+                    <Search
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8fa2b3]"
+                    />
+                    <input
+                      value={mobileInput}
+                      onChange={(e) => {
+                        setMobileInput(e.target.value);
+                        if (searchError) setSearchError("");
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && trackByDetails()}
+                      placeholder={t("10-digit mobile number")}
+                      className="w-full rounded-xl border border-[#cfdbe3] px-4 py-3.5 pl-11 text-sm font-medium text-[#172a43] outline-none transition placeholder:text-[#9bb0c1] focus:border-[#1769a8] focus:ring-2 focus:ring-[#1769a8]/10"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={trackByDetails}
+                  disabled={loading || (!applicantName.trim() && !mobileInput.trim())}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#145c91] px-7 py-3 text-sm font-bold text-white shadow-md shadow-[#145c91]/20 transition hover:bg-[#104d7b] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{t("Searching...")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search size={16} />
+                      <span>{t("Search & Track")}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Preset Demo Application Chips */}
-          <div className="mt-5 border-t border-[#edf2f6] pt-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8295a6]">
-              {t("Try Sample Applications:")}
-            </p>
-            <div className="mt-2.5 flex flex-wrap gap-2">
-              {Object.keys(PRESET_SAMPLE_APPLICATIONS).map((key) => {
-                const sample = PRESET_SAMPLE_APPLICATIONS[key];
-                const isSelected = status?.application_id === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setApplicationId(key);
-                      trackId(key);
-                    }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-                      isSelected
-                        ? "border-[#145c91] bg-[#eef7fd] text-[#145c91] font-bold"
-                        : "border-[#d8e4ed] bg-white text-[#455c72] hover:bg-[#f5f9fc]"
-                    }`}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        sample.status_color === "emerald"
-                          ? "bg-[#20bf6b]"
-                          : sample.status_color === "amber"
-                          ? "bg-[#f7b731]"
-                          : "bg-[#2d98da]"
-                      }`}
-                    />
-                    <span>{key}</span>
-                    <span className="text-[10px] text-[#7d93a6]">
-                      ({sample.scheme_id})
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Search Error Alert */}
+          {searchError && (
+            <div className="mt-4 rounded-xl border border-[#fbd38d] bg-[#fffaf0] p-4 text-xs font-medium text-[#975a16]">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle size={17} className="mt-0.5 shrink-0 text-[#dd6b20]" />
+                <div className="flex-1">
+                  <p className="font-semibold text-[#7b341e]">{searchError}</p>
+                  <p className="mt-1 text-[#975a16]">
+                    {t("Haven't submitted an application yet? You can explore schemes tailored to you and apply via Scheme Finder.")}
+                  </p>
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("scheme_finder")}
+                      className="mt-2 inline-flex items-center gap-1 font-bold text-[#145c91] hover:underline"
+                    >
+                      {t("Go to Scheme Finder")}
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-[#718597]">
-              <span className="text-[11px] font-semibold text-[#8b9fad]">{t("Recent:")}</span>
-              {recentSearches.slice(0, 4).map((rId) => (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#718597] border-t border-[#edf2f6] pt-3">
+              <span className="text-[11px] font-semibold text-[#8b9fad]">{t("Recent Searches:")}</span>
+              {recentSearches.map((rId) => (
                 <button
                   key={rId}
+                  type="button"
                   onClick={() => {
                     setApplicationId(rId);
                     trackId(rId);
                   }}
-                  className="rounded bg-[#f0f5fa] px-2 py-0.5 text-xs text-[#354f67] hover:bg-[#e4eff7]"
+                  className="rounded-lg bg-[#f0f5fa] px-2.5 py-1 text-xs font-mono font-medium text-[#354f67] transition hover:bg-[#e4eff7]"
                 >
                   {rId}
                 </button>
@@ -386,9 +436,123 @@ export default function TrackApplication({
           )}
         </div>
 
-        {/* 2. TRACKING DETAILS DOSSIER */}
+        {/* 2. AMAZON-STYLE "YOUR PLACED APPLICATIONS" SECTION */}
+        <div className="rounded-2xl border border-[#d5e1e8] bg-white p-6 md:p-8 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[#edf2f6] pb-4">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-[#14283e] flex items-center gap-2">
+                <Package size={20} className="text-[#1769a8]" />
+                {t("Your Placed Applications")}
+                {myApplications.length > 0 && (
+                  <span className="rounded-full bg-[#e8f3fb] px-2.5 py-0.5 text-xs font-bold text-[#145c91]">
+                    {myApplications.length}
+                  </span>
+                )}
+              </h3>
+              <p className="mt-0.5 text-xs text-[#63778a]">
+                {t("Like Amazon order tracking, all applications placed from your account are recorded in SQLite and trackable anytime.")}
+              </p>
+            </div>
+          </div>
+
+          {myApplications.length > 0 ? (
+            <div className="mt-5 space-y-3.5">
+              {myApplications.map((app) => {
+                const isSelected = status?.application_id === app.application_id;
+                return (
+                  <div
+                    key={app.application_id}
+                    className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 rounded-xl border p-4.5 transition ${
+                      isSelected
+                        ? "border-[#145c91] bg-[#f2f8fc] shadow-sm"
+                        : "border-[#e2ebf1] bg-[#fcfdfe] hover:border-[#b8cfdf]"
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-[#14283e]">
+                          {app.application_id}
+                        </span>
+                        <span className="rounded bg-[#e8f3fb] px-2 py-0.5 text-xs font-semibold text-[#145c91]">
+                          {app.scheme_name || app.scheme_id}
+                        </span>
+                        <span className="text-xs text-[#718596]">
+                          • {t("Amount")}: <strong className="text-[#172a43]">{app.loan_amount || "₹ 1,50,000"}</strong>
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-[#5a6f84]">
+                        {t("Applicant")}: <span className="font-medium text-[#172a43]">{app.applicant_name}</span>{" "}
+                        • {t("Applied On")}: <span className="font-medium text-[#172a43]">{app.submission_date || "Recent"}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                          app.status_code === "APPROVED"
+                            ? "bg-[#e5f7ed] text-[#1e824c]"
+                            : app.status_code === "ACTION_REQUIRED"
+                            ? "bg-[#fef3dd] text-[#b45309]"
+                            : "bg-[#e8f3fb] text-[#145c91]"
+                        }`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {app.status_label || "Application Submitted"}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setApplicationId(app.application_id);
+                          trackId(app.application_id);
+                        }}
+                        className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold shadow-sm transition ${
+                          isSelected
+                            ? "bg-[#104d7b] text-white ring-2 ring-[#145c91]/30"
+                            : "bg-[#145c91] text-white hover:bg-[#104d7b]"
+                        }`}
+                      >
+                        <span>{isSelected ? t("Tracking Active") : t("Track Status")}</span>
+                        <ArrowRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : isLoggedIn ? (
+            <div className="mt-5 rounded-xl border border-dashed border-[#d1dee7] bg-[#f9fcfe] p-8 text-center">
+              <Package size={36} className="mx-auto text-[#8ea4b8]" />
+              <h4 className="mt-3 text-sm font-bold text-[#1e344a]">
+                {t("No applications placed yet")}
+              </h4>
+              <p className="mx-auto mt-1 max-w-md text-xs text-[#63778a]">
+                {t("You haven't submitted any scheme applications under this account yet. Find schemes matching your criteria and apply to track them here anytime.")}
+              </p>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate("scheme_finder")}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#145c91] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#104d7b]"
+                >
+                  {t("Find Schemes & Apply")}
+                  <ArrowRight size={13} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-dashed border-[#d1dee7] bg-[#f9fcfe] p-6 text-center">
+              <p className="text-xs text-[#52657b]">
+                {t("Sign in to your account to view all your placed applications automatically in one place, or enter your Application ID above to track any application.")}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 3. LIVE PROGRESS TRACKING DOSSIER */}
         {status && (
-          <div className="mt-8 space-y-6">
+          <div id="application-tracker-view" className="mt-8 space-y-6 scroll-mt-6">
             {/* Header Summary Card */}
             <div className="overflow-hidden rounded-2xl border border-[#d5e1e8] bg-white shadow-sm">
               <div className="border-b border-[#e9eff4] bg-gradient-to-r from-[#fbfdfe] via-[#f7fbfe] to-[#f4f9fd] p-6">

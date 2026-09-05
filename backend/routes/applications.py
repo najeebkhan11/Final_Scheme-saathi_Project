@@ -1,4 +1,4 @@
-﻿import re
+import re
 import json
 import random
 from datetime import datetime, timedelta
@@ -241,6 +241,12 @@ class ApplicationSubmitRequest(BaseModel):
     loan_amount: Optional[str] = None
     purpose: Optional[str] = None
     channel_partner: Optional[Dict[str, Any]] = None
+
+
+class ApplicationSearchRequest(BaseModel):
+    application_id: Optional[str] = None
+    mobile: Optional[str] = None
+    applicant_name: Optional[str] = None
 
 
 def generate_timeline(submission_dt: datetime, scheme_name: str, app_id: str) -> list[dict]:
@@ -512,6 +518,13 @@ def submit_application(
         row = cursor.fetchone()
         app_dict = row_to_application_dict(dict(row))
 
+    # Automatically sync new submission into Excel workbook in D:\Project-SIH\Admin_Data
+    try:
+        from services.excel_exporter import sync_all_admin_excel
+        sync_all_admin_excel()
+    except Exception:
+        pass
+
     return {
         "status": "success",
         "message": "Application submitted successfully and saved to database",
@@ -567,17 +580,34 @@ def track_application(application_id: str):
     if not app_id:
         raise HTTPException(status_code=400, detail="Application ID cannot be empty.")
 
+    digits = re.sub(r"\D", "", app_id)
+    last10 = digits[-10:] if len(digits) >= 10 else digits
+
     # 1. Search in SQLite Database first
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT * FROM user_applications
-            WHERE lower(application_id) = lower(?) OR mobile = ?
-            ORDER BY created_at DESC LIMIT 1
-            """,
-            (app_id, app_id),
-        )
+        if len(digits) >= 10:
+            cursor.execute(
+                """
+                SELECT * FROM user_applications
+                WHERE lower(application_id) = lower(?)
+                   OR mobile = ?
+                   OR mobile LIKE ?
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (app_id, app_id, f"%{last10}%"),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT * FROM user_applications
+                WHERE lower(application_id) = lower(?)
+                   OR lower(applicant_name) = lower(?)
+                   OR mobile = ?
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (app_id, app_id, app_id),
+            )
         row = cursor.fetchone()
         if row:
             return {
@@ -587,17 +617,65 @@ def track_application(application_id: str):
                 "application": row_to_application_dict(dict(row)),
             }
 
-    # 2. Check in Sample Applications dictionary
+    # 2. Check in Sample Applications dictionary if explicitly requested
     for sample_id, data in SAMPLE_APPLICATIONS.items():
         if sample_id.lower() == app_id.lower():
             return {"status": "success", "found": True, "source": "sample", "application": data}
 
-    digits = re.sub(r"\D", "", app_id)
-    if len(digits) == 10:
-        first = list(SAMPLE_APPLICATIONS.values())[0].copy()
-        first["mobile_masked"] = f"XXXXXX{digits[-4:]}"
-        return {"status": "success", "found": True, "source": "sample", "application": first}
+    raise HTTPException(
+        status_code=404,
+        detail=f"No application found for '{app_id}'. Please verify your Application ID or registered mobile number."
+    )
 
-    # 3. Dynamic generator
-    dynamic_app = build_dynamic_application(app_id)
-    return {"status": "success", "found": True, "source": "dynamic", "application": dynamic_app}
+
+@router.post("/search")
+def search_applications(req: ApplicationSearchRequest):
+    app_id = (req.application_id or "").strip()
+    mobile = (req.mobile or "").strip()
+    name = (req.applicant_name or "").strip()
+
+    if not app_id and not mobile and not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide an Application ID, Mobile Number, or Applicant Name."
+        )
+
+    digits = re.sub(r"\D", "", mobile or app_id)
+    last10 = digits[-10:] if len(digits) >= 10 else digits
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        clauses = []
+        params = []
+
+        if app_id:
+            clauses.append("lower(application_id) = lower(?)")
+            params.append(app_id)
+        if mobile:
+            clauses.append("(mobile = ? OR mobile LIKE ?)")
+            params.extend([mobile, f"%{last10}%"])
+        if name:
+            clauses.append("lower(applicant_name) LIKE lower(?)")
+            params.append(f"%{name}%")
+
+        if clauses:
+            query = f"SELECT * FROM user_applications WHERE {' OR '.join(clauses)} ORDER BY created_at DESC LIMIT 1"
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "status": "success",
+                    "found": True,
+                    "source": "database",
+                    "application": row_to_application_dict(dict(row)),
+                }
+
+    if app_id:
+        for s_id, s_data in SAMPLE_APPLICATIONS.items():
+            if s_id.lower() == app_id.lower():
+                return {"status": "success", "found": True, "source": "sample", "application": s_data}
+
+    raise HTTPException(
+        status_code=404,
+        detail="No application found matching the entered details. Please check your information or submit an application through Scheme Finder."
+    )
