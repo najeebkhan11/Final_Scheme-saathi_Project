@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Printer,
   MapPin,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Calculator,
   Bot,
+  LogIn,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -21,12 +22,17 @@ import {
   SCHEME_SPECIFIC_DOCUMENTS,
 } from "../data/schemesConstants";
 import { apiCache } from "../services/apiCache";
+import { API_BASE_URL } from "../config/api";
 
 export default function DocumentsPage({
   onBack,
   onFindScheme,
   lastSchemeResults: propResults,
   onNavigate,
+  isLoggedIn = false,
+  currentUser = null,
+  onLogin,
+  onLogout,
 }) {
   const { t } = useTranslation();
 
@@ -67,14 +73,58 @@ export default function DocumentsPage({
     }
   });
 
-  // Toggle document checked status and persist in localStorage
+  // Fetch document verification status from SQLite if logged in
+  useEffect(() => {
+    const token = localStorage.getItem("scheme_saathi_token");
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/documents/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.documents) {
+          setCheckedDocs((prev) => {
+            const merged = { ...prev };
+            Object.keys(data.documents).forEach((key) => {
+              if (data.documents[key]?.status === "verified") {
+                merged[key] = true;
+              }
+            });
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  // Toggle document checked status and persist in localStorage + SQLite
   const toggleDoc = (docId) => {
     setCheckedDocs((prev) => {
-      const updated = { ...prev, [docId]: !prev[docId] };
+      const nextVal = !prev[docId];
+      const updated = { ...prev, [docId]: nextVal };
       try {
         localStorage.setItem("scheme_saathi_doc_checklist", JSON.stringify(updated));
       } catch {
         // ignore storage error
+      }
+
+      // Persist to SQLite if logged in
+      const token = localStorage.getItem("scheme_saathi_token");
+      if (token && nextVal) {
+        fetch(`${API_BASE_URL}/api/documents/verify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            doc_type: docId,
+            doc_name: docId.replace(/_/g, " ").toUpperCase(),
+            status: "verified",
+            verified_via: "DigiLocker",
+          }),
+        }).catch(() => {});
       }
       return updated;
     });
@@ -91,6 +141,25 @@ export default function DocumentsPage({
         localStorage.setItem("scheme_saathi_doc_checklist", JSON.stringify(updated));
       } catch {
         // ignore
+      }
+
+      const token = localStorage.getItem("scheme_saathi_token");
+      if (token && markReady) {
+        docsList.forEach((d) => {
+          fetch(`${API_BASE_URL}/api/documents/verify`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              doc_type: d.id,
+              doc_name: d.name || d.id,
+              status: "verified",
+              verified_via: "DigiLocker",
+            }),
+          }).catch(() => {});
+        });
       }
       return updated;
     });
@@ -141,6 +210,16 @@ export default function DocumentsPage({
       onBack={onBack}
       actions={
         <div className="flex items-center gap-2">
+          {!isLoggedIn && onLogin && (
+            <button
+              onClick={onLogin}
+              className="flex items-center gap-1.5 rounded-lg border border-[#cfd8e3] bg-white px-3.5 py-2 text-xs font-semibold text-[#24344e] shadow-sm transition hover:bg-[#f5f8fb] hover:border-[#145c91]"
+            >
+              <LogIn size={15} className="text-[#145c91]" />
+              <span>{t("Sign In")}</span>
+            </button>
+          )}
+
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 rounded-lg border border-[#cfdbe3] bg-white px-3.5 py-2 text-xs font-semibold text-[#29445d] shadow-sm transition hover:bg-[#f2f6fa]"
@@ -162,6 +241,32 @@ export default function DocumentsPage({
         </div>
       }
     >
+      {/* Sign In Banner if not logged in */}
+      {!isLoggedIn && onLogin && (
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[#d2e4f0] bg-[#eef7fd] p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#145c91] shadow-xs">
+              <LogIn size={18} />
+            </div>
+            <div>
+              <p className="font-serif text-sm font-bold text-[#143d63]">
+                {t("Sign in to save and sync your document checklist")}
+              </p>
+              <p className="mt-0.5 text-xs text-[#597591]">
+                {t("Sign in to store your verified document readiness in your profile and sync with DigiLocker.")}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onLogin}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#145c91] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#104b77]"
+          >
+            <LogIn size={14} />
+            <span>{t("Sign In")}</span>
+          </button>
+        </div>
+      )}
+
       {/* 1. MATCHED SCHEMES NOTIFICATION / DISCOVERY BANNER */}
       {eligibleSchemes.length > 0 ? (
         <div className="mb-8 overflow-hidden rounded-2xl border border-[#b8ddf4] bg-gradient-to-r from-[#eef8fe] via-[#f5fbff] to-[#edf6fc] p-6 shadow-sm">

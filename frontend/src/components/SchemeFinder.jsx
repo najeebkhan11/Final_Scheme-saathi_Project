@@ -68,6 +68,46 @@ export default function SchemeFinder({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
+  // Auto-hydrate saved profile from SQLite if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem("scheme_saathi_token");
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/auth/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.profile) {
+          const p = data.profile;
+          setFormData((prev) => ({
+            ...prev,
+            fullName: p.fullName || (data.user?.name || prev.fullName),
+            age: p.age || prev.age,
+            gender: p.gender || prev.gender,
+            category: p.category || prev.category,
+            state: p.state || prev.state,
+            district: p.district || prev.district,
+            annualIncome: p.annualIncome || (p.annual_income != null ? String(p.annual_income) : prev.annualIncome),
+            purpose: p.purpose || prev.purpose,
+            businessType: p.businessType || p.business_type || prev.businessType,
+            projectStage: p.projectStage || p.project_stage || prev.projectStage,
+            projectCost: p.projectCost || (p.project_cost != null ? String(p.project_cost) : prev.projectCost),
+            requiredLoan: p.requiredLoan || (p.required_loan != null ? String(p.required_loan) : prev.requiredLoan),
+            course: p.course || prev.course,
+            institution: p.institution || prev.institution,
+            courseFee: p.courseFee || (p.course_fee != null ? String(p.course_fee) : prev.courseFee),
+            educationLevel: p.educationLevel || p.education_level || prev.educationLevel,
+            ownContribution: p.ownContribution || (p.own_contribution != null ? String(p.own_contribution) : prev.ownContribution),
+            existingLoan: p.existingLoan || p.existing_loan || prev.existingLoan,
+            outstandingAmount: p.outstandingAmount || (p.outstanding_amount != null ? String(p.outstanding_amount) : prev.outstandingAmount),
+            overdue: p.overdue || prev.overdue,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
   const updateField = (field, value) => {
     setFormData((current) => ({
       ...current,
@@ -230,6 +270,19 @@ export default function SchemeFinder({
       state: formData.state,
       district: formData.district,
     });
+
+    // Persist profile to SQLite for logged-in user
+    const token = localStorage.getItem("scheme_saathi_token");
+    if (token) {
+      fetch(`${API_BASE_URL}/api/auth/profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      }).catch(() => {});
+    }
 
     const cached = apiCache.getSchemeMatch(profileKey);
     if (cached) {

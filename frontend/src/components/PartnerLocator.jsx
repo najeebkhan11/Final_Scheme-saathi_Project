@@ -177,6 +177,53 @@ export default function PartnerLocator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // When user is signed in, load location from user_profiles or auto-detect
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    let isMounted = true;
+    const loadSignedUserLocation = async () => {
+      try {
+        const token = localStorage.getItem("scheme_saathi_token");
+        if (token) {
+          const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const profile = data?.profile;
+            if (profile?.state && isMounted) {
+              setState(profile.state);
+              if (profile.district) {
+                setDistrict(profile.district);
+              }
+              fetchDistricts(profile.state);
+              searchPartners({
+                stateName: profile.state,
+                districtName: profile.district || "",
+              });
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch user profile for location autofill:", err);
+      }
+
+      // If signed in but no saved profile state yet, auto-detect location and fill filters!
+      if (isMounted && !state) {
+        performDetectLocation(true);
+      }
+    };
+
+    loadSignedUserLocation();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
   useEffect(() => {
     if (state) {
       fetchDistricts(state);
@@ -193,42 +240,135 @@ export default function PartnerLocator({
     setCoords(null);
   };
 
-  const handleDetectLocation = () => {
-    setError("");
-    const cached = apiCache.getCachedGps();
-    if (cached) {
-      setCoords(cached);
-      setGpsActive(true);
-      searchPartners({ coordinates: cached });
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      setError(t("Geolocation is not supported by your browser."));
-      return;
-    }
-
+  const performDetectLocation = async (silent = false) => {
+    if (!silent) setError("");
     setGpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const detected = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        };
-        apiCache.setCachedGps(detected);
-        setCoords(detected);
-        setGpsActive(true);
-        setGpsLoading(false);
-        searchPartners({ coordinates: detected });
-      },
-      () => {
-        setGpsLoading(false);
-        setError(
-          t("Location access was denied or unavailable. Please select your State and District manually from the dropdowns.")
+
+    const applyDetectedLocation = async (lat, lon) => {
+      const detectedCoords = { latitude: lat, longitude: lon };
+      setCoords(detectedCoords);
+      setGpsActive(true);
+      apiCache.setCachedGps(detectedCoords);
+
+      // Reverse geocode to find State & District
+      let detectedState = "";
+      let detectedDistrict = "";
+
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/locations/reverse-geocode?latitude=${lat}&longitude=${lon}`
         );
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "success" && data.state) {
+            detectedState = data.state;
+            detectedDistrict = data.district || "";
+          }
+        }
+      } catch (err) {
+        console.warn("Backend reverse-geocode failed, falling back to direct OSM:", err);
+        try {
+          const osmRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`
+          );
+          if (osmRes.ok) {
+            const osmData = await osmRes.json();
+            detectedState = osmData.address?.state || "";
+            detectedDistrict =
+              osmData.address?.state_district ||
+              osmData.address?.county ||
+              osmData.address?.city ||
+              "";
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // If state was detected, fill it in the filters!
+      if (detectedState) {
+        setState(detectedState);
+        if (detectedDistrict) {
+          setDistrict(detectedDistrict);
+        }
+        fetchDistricts(detectedState);
+      }
+
+      // Execute partner search with coordinates and detected state/district
+      await searchPartners({
+        coordinates: detectedCoords,
+        stateName: detectedState || undefined,
+        districtName: detectedDistrict || undefined,
+      });
+
+      // Scroll smoothly to map so the user immediately sees their pinpointed location
+      setTimeout(() => {
+        const mapElem = document.getElementById("partner-route-map");
+        if (mapElem) {
+          mapElem.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 300);
+    };
+
+    // Try browser navigator.geolocation first
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          setGpsLoading(false);
+          await applyDetectedLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        async (err) => {
+          console.warn("Browser GPS error or blocked:", err);
+          // Fallback to IP Geolocation via backend
+          try {
+            const ipRes = await fetch(`${API_BASE_URL}/api/locations/reverse-geocode`);
+            if (ipRes.ok) {
+              const ipData = await ipRes.json();
+              if (ipData.latitude && ipData.longitude) {
+                setGpsLoading(false);
+                await applyDetectedLocation(ipData.latitude, ipData.longitude);
+                return;
+              }
+            }
+          } catch {
+            // ignore
+          }
+
+          setGpsLoading(false);
+          if (!silent) {
+            setError(
+              t(
+                "Location access was denied or unavailable. Please select your State and District manually from the dropdowns."
+              )
+            );
+          }
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    } else {
+      // Geolocation not supported, fallback to IP Geolocation
+      try {
+        const ipRes = await fetch(`${API_BASE_URL}/api/locations/reverse-geocode`);
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          if (ipData.latitude && ipData.longitude) {
+            setGpsLoading(false);
+            await applyDetectedLocation(ipData.latitude, ipData.longitude);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      setGpsLoading(false);
+      if (!silent) {
+        setError(t("Geolocation is not supported. Please select your State and District manually."));
+      }
+    }
+  };
+
+  const handleDetectLocation = () => {
+    performDetectLocation(false);
   };
 
   const handleReset = () => {
@@ -288,11 +428,21 @@ export default function PartnerLocator({
 
   const userLocationObj = useMemo(() => {
     if (gpsActive && coords && coords.latitude && coords.longitude) {
+      const locText = [district, state].filter(Boolean).join(", ");
       return {
         latitude: coords.latitude,
         longitude: coords.longitude,
         isGps: true,
-        label: t("Your GPS Location"),
+        label: locText ? `${locText} (${t("Your GPS Location")})` : t("Your GPS Location"),
+      };
+    }
+    if (coords && coords.latitude && coords.longitude) {
+      const locText = [district, state].filter(Boolean).join(", ");
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        isGps: true,
+        label: locText ? `${locText} (${t("Detected Location")})` : t("Detected Location"),
       };
     }
     if (state) {
@@ -531,6 +681,22 @@ export default function PartnerLocator({
           </div>
         </div>
 
+        {!searched && !loading && !gpsLoading && (
+          <div className="mt-8 rounded-2xl border border-dashed border-[#cbe0ee] bg-[#f8fbfe] p-8 text-center sm:p-12">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e8f4fc] text-[#145c91]">
+              <MapPin size={28} />
+            </div>
+            <h3 className="mt-4 font-serif text-lg font-bold text-[#172a43]">
+              {t("Explore Channel Partners Across India")}
+            </h3>
+            <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-[#5e748c]">
+              {t(
+                "Click 'Detect My Current Location' above to automatically locate verified SCAs, Banks, and NBFC-MFIs near you, or select your State and District from the dropdown to explore."
+              )}
+            </p>
+          </div>
+        )}
+
         {searched && (
           <div className="mt-10 space-y-8">
             {/* Header & Filter Controls */}
@@ -558,7 +724,7 @@ export default function PartnerLocator({
             </div>
 
             {/* Interactive Geospatial Map Section */}
-            {partners.length > 0 && (
+            {(partners.length > 0 || userLocationObj) && (
               <div id="partner-route-map" className="scroll-mt-24">
                 <PartnerMap
                   partners={filteredPartners}

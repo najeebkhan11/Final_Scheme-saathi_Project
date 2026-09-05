@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Loader2,
@@ -18,12 +18,19 @@ import { useTranslation } from "../i18n";
 import { PRESET_SAMPLE_APPLICATIONS, STAGES_MASTER } from "../data/schemesConstants";
 import { API_BASE_URL } from "../config/api";
 
-export default function TrackApplication({ onBack, onNavigate }) {
+export default function TrackApplication({
+  onBack,
+  onNavigate,
+  initialApplicationId = "",
+  isLoggedIn = false,
+  currentUser = null,
+}) {
   const { t } = useTranslation();
-  const [applicationId, setApplicationId] = useState("");
+  const [applicationId, setApplicationId] = useState(initialApplicationId || "");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(() => PRESET_SAMPLE_APPLICATIONS["SS-2026-MFS-8492"]);
   const [copied, setCopied] = useState(false);
+  const [myApplications, setMyApplications] = useState([]);
   const [recentSearches, setRecentSearches] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("scheme_saathi_recent_tracks") || "[]");
@@ -31,6 +38,31 @@ export default function TrackApplication({ onBack, onNavigate }) {
       return [];
     }
   });
+
+  // Fetch real user applications from SQLite if logged in
+  useEffect(() => {
+    const token = localStorage.getItem("scheme_saathi_token");
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/applications/my-applications`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.applications?.length > 0) {
+          setMyApplications(data.applications);
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  // If navigated with an initial application ID, track it immediately
+  useEffect(() => {
+    if (initialApplicationId) {
+      setApplicationId(initialApplicationId);
+      trackId(initialApplicationId);
+    }
+  }, [initialApplicationId]);
 
   const saveRecent = (id) => {
     setRecentSearches((prev) => {
@@ -254,6 +286,44 @@ export default function TrackApplication({ onBack, onNavigate }) {
               )}
             </button>
           </div>
+
+          {/* User's Database Applications */}
+          {myApplications.length > 0 && (
+            <div className="mt-5 border-t border-[#edf2f6] pt-4">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#145c91]">
+                <FileText size={13} />
+                {t("Your Submitted Applications (Stored in SQLite):")}
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {myApplications.map((app) => {
+                  const isSelected = status?.application_id === app.application_id;
+                  return (
+                    <button
+                      key={app.application_id}
+                      onClick={() => {
+                        setApplicationId(app.application_id);
+                        trackId(app.application_id);
+                      }}
+                      className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+                        isSelected
+                          ? "border-[#145c91] bg-[#eef7fd] text-[#145c91] font-bold shadow-sm"
+                          : "border-[#cfdde7] bg-[#f8fbfe] text-[#2c4760] hover:bg-[#eef5fa]"
+                      }`}
+                    >
+                      <span className="flex h-2 w-2 rounded-full bg-[#1769a8]" />
+                      <span className="font-mono font-bold">{app.application_id}</span>
+                      <span className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-[#556b80]">
+                        {app.scheme_id || app.scheme_name}
+                      </span>
+                      <span className="text-[10px] font-medium text-[#2d7e52]">
+                        {app.status_label || "Submitted"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Preset Demo Application Chips */}
           <div className="mt-5 border-t border-[#edf2f6] pt-4">

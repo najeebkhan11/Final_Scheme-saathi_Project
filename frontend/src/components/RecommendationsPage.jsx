@@ -108,6 +108,8 @@ export default function RecommendationsPage({
   onOpenPartner,
   onNavigate,
   onSetResults,
+  isLoggedIn = false,
+  currentUser = null,
 }) {
   const { t } = useTranslation();
 
@@ -123,6 +125,9 @@ export default function RecommendationsPage({
   const [activeFormData, setActiveFormData] = useState(savedState?.formData || null);
   const [evaluatingDemo, setEvaluatingDemo] = useState(false);
   const [activeStage, setActiveStage] = useState("stage-user-profile");
+  const [submittingApp, setSubmittingApp] = useState(false);
+  const [submittedApp, setSubmittedApp] = useState(null);
+  const [applyError, setApplyError] = useState("");
 
   // Keep state in sync if prop changes
   React.useEffect(() => {
@@ -271,6 +276,54 @@ export default function RecommendationsPage({
     const el = document.getElementById(stageId);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleApplyScheme = async (scheme) => {
+    setSubmittingApp(true);
+    setApplyError("");
+    const token = localStorage.getItem("scheme_saathi_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const targetScheme = scheme || topScheme;
+    const payload = {
+      applicant_name: activeFormData?.fullName || currentUser?.name || "Applicant",
+      mobile: currentUser?.identifier || activeFormData?.mobile || "9876543210",
+      scheme_id: targetScheme?.scheme_id || targetScheme?.code || "MFS",
+      scheme_name: targetScheme?.scheme_name || targetScheme?.name || "Recommended Scheme",
+      loan_amount: formatCurrency(activeFormData?.requiredLoan || 150000),
+      purpose: formatValue(activeFormData?.purpose || "new_business"),
+      channel_partner: activeSelectedPartner ? {
+        name: activeSelectedPartner.name,
+        district: activeSelectedPartner.district,
+        state: activeSelectedPartner.state,
+        office_address: activeSelectedPartner.address,
+        contact_phone: activeSelectedPartner.contact || activeSelectedPartner.phone,
+        helpline: "1800-180-6000"
+      } : null
+    };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/applications/submit`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSubmittedApp(data.application || data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setApplyError(err.detail || "Failed to submit application. Please try again.");
+      }
+    } catch {
+      setApplyError("Could not reach backend server to submit application.");
+    } finally {
+      setSubmittingApp(false);
     }
   };
 
@@ -950,6 +1003,27 @@ export default function RecommendationsPage({
                   <p className="mt-3 text-[11px] font-semibold text-[#667a8e]">
                     {t("Evaluated by Scheme Saathi AI")}
                   </p>
+
+                  <button
+                    onClick={() => handleApplyScheme(topScheme)}
+                    disabled={submittingApp}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#145c91] px-5 py-3 text-xs font-bold text-white shadow transition hover:bg-[#104d7b] disabled:opacity-75"
+                  >
+                    {submittingApp ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span>{t("Submitting Application...")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText size={15} />
+                        <span>{t("Apply for This Scheme")}</span>
+                      </>
+                    )}
+                  </button>
+                  {applyError && (
+                    <p className="mt-2 text-[11px] font-semibold text-red-600">{applyError}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1487,6 +1561,24 @@ export default function RecommendationsPage({
               {/* Action Toolbar */}
               <div className="mt-6 flex flex-wrap gap-3 border-t border-[#edf2f6] pt-5">
                 <button
+                  onClick={() => handleApplyScheme(topScheme)}
+                  disabled={submittingApp}
+                  className="flex items-center gap-2 rounded-lg bg-[#2e8257] px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#256c47] disabled:opacity-75"
+                >
+                  {submittingApp ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>{t("Submitting Application...")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={15} />
+                      <span>{t("Apply for Scheme Now")}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
                   onClick={onOpenCalculator}
                   className="flex items-center gap-2 rounded-lg bg-[#145c91] px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#104d7b]"
                 >
@@ -1524,6 +1616,80 @@ export default function RecommendationsPage({
           </section>
         </div>
       </main>
+
+      {/* Application Submitted Confirmation Modal */}
+      {submittedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-7 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f6ed] text-[#2e8257]">
+                <CheckCircle2 size={28} />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2e8257]">
+                  {t("Application Registered in SQLite")}
+                </span>
+                <h3 className="font-serif text-xl font-bold text-[#14283f]">
+                  {t("Application Submitted Successfully!")}
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#e1ebf1] bg-[#f8fbfe] p-4 text-xs space-y-2.5">
+              <div className="flex justify-between items-center border-b border-[#e6eff4] pb-2">
+                <span className="text-[#687e93] font-medium">{t("Application ID")}:</span>
+                <span className="font-mono text-sm font-bold text-[#1769a8]">
+                  {submittedApp.application_id}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-[#e6eff4] pb-2">
+                <span className="text-[#687e93] font-medium">{t("Scheme")}:</span>
+                <span className="font-semibold text-[#182d43]">
+                  {submittedApp.scheme_name || submittedApp.scheme_id}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-[#e6eff4] pb-2">
+                <span className="text-[#687e93] font-medium">{t("Loan Amount")}:</span>
+                <span className="font-bold text-[#2e8257]">
+                  {submittedApp.loan_amount}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#687e93] font-medium">{t("Allocated Channel Partner")}:</span>
+                <span className="font-semibold text-[#182d43] text-right">
+                  {submittedApp.channel_partner?.name || "State Scheduled Castes Development Corp"}
+                </span>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-[#5e7388]">
+              {t("Your application has been stored permanently in your Scheme Saathi database. You can now track your application through every milestone (KYC Scrutiny, Partner Appraisal, Bank Sanction, and DBT Disbursement).")}
+            </p>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
+              <button
+                onClick={() => {
+                  const id = submittedApp.application_id;
+                  setSubmittedApp(null);
+                  if (onNavigate) {
+                    onNavigate("track_application", id);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#145c91] px-5 py-3 text-xs font-bold text-white shadow transition hover:bg-[#104d7b]"
+              >
+                <Search size={15} />
+                {t("Track Application Now")}
+              </button>
+              <button
+                onClick={() => setSubmittedApp(null)}
+                className="rounded-xl border border-[#cbd8e2] px-4 py-3 text-xs font-bold text-[#4c637a] hover:bg-[#f5f8fa]"
+              >
+                {t("Close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

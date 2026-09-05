@@ -175,6 +175,14 @@ def save_profile(
 
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # If name is provided and changed, update users table
+        if data.get("name"):
+            cursor.execute(
+                "UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (data["name"].strip(), user_id),
+            )
+
         cursor.execute("SELECT id FROM user_profiles WHERE user_id = ?", (user_id,))
         existing = cursor.fetchone()
 
@@ -265,8 +273,33 @@ def get_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
             return {
                 "status": "success",
                 "profile": None,
+                "user": {
+                    "id": current_user["id"],
+                    "name": current_user["name"],
+                    "identifier": current_user["identifier"],
+                },
             }
+        p = dict(row)
+        # Attach frontend-friendly camelCase fields
+        p["fullName"] = current_user.get("name", "")
+        p["annualIncome"] = str(p["annual_income"]) if p.get("annual_income") is not None else ""
+        p["businessType"] = p.get("business_type") or ""
+        p["projectStage"] = p.get("project_stage") or ""
+        p["projectCost"] = str(p["project_cost"]) if p.get("project_cost") is not None else ""
+        p["requiredLoan"] = str(p["required_loan"]) if p.get("required_loan") is not None else ""
+        p["courseFee"] = str(p["course_fee"]) if p.get("course_fee") is not None else ""
+        p["educationLevel"] = p.get("education_level") or ""
+        p["ownContribution"] = str(p["own_contribution"]) if p.get("own_contribution") is not None else ""
+        p["existingLoan"] = p.get("existing_loan") or ""
+        p["outstandingAmount"] = str(p["outstanding_amount"]) if p.get("outstanding_amount") is not None else ""
+        p["overdue"] = p.get("overdue") or ""
+
         return {
             "status": "success",
-            "profile": dict(row),
+            "profile": p,
+            "user": {
+                "id": current_user["id"],
+                "name": current_user["name"],
+                "identifier": current_user["identifier"],
+            },
         }

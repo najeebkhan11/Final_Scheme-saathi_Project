@@ -79,6 +79,7 @@ function AppContent() {
 
   const [selectedSchemeForPartner, setSelectedSchemeForPartner] = useState("");
   const [aiInitialQuery, setAiInitialQuery] = useState("");
+  const [selectedTrackAppId, setSelectedTrackAppId] = useState("");
 
   // Pre-warm locations in memory during idle time
   useEffect(() => {
@@ -210,14 +211,9 @@ function AppContent() {
               currentUser={currentUser}
               onLogin={() => setView("login")}
               onLogout={handleLogout}
-              initialState={lastSchemeFormData?.state}
-              initialDistrict={lastSchemeFormData?.district}
-              initialSchemeId={
-                selectedSchemeForPartner ||
-                lastSchemeResults?.primary?.eligible?.[0]?.scheme_id ||
-                lastSchemeResults?.primary?.eligible?.[0]?.id ||
-                lastSchemeResults?.primary?.eligible?.[0]?.code
-              }
+              initialState=""
+              initialDistrict=""
+              initialSchemeId={selectedSchemeForPartner || ""}
             />
           )}
 
@@ -241,6 +237,10 @@ function AppContent() {
               onBack={() => setView("home")}
               onFindScheme={openSchemeFinder}
               lastSchemeResults={lastSchemeResults}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+              onLogin={() => setView("login")}
+              onLogout={handleLogout}
               onNavigate={(page, query = "") => {
                 if (query) setAiInitialQuery(query);
                 setView(page);
@@ -251,6 +251,9 @@ function AppContent() {
           {view === "track_application" && (
             <TrackApplication
               onBack={() => setView("home")}
+              initialApplicationId={selectedTrackAppId}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
               onNavigate={(page, query = "") => {
                 if (query) setAiInitialQuery(query);
                 setView(page);
@@ -264,7 +267,14 @@ function AppContent() {
               onFindScheme={openSchemeFinder}
               results={lastSchemeResults}
               formData={lastSchemeFormData}
-              onNavigate={(page) => setView(page)}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+              onNavigate={(page, appId = "") => {
+                if (appId && page === "track_application") {
+                  setSelectedTrackAppId(appId);
+                }
+                setView(page);
+              }}
               onOpenAI={() => setView("ai_assistant")}
               onOpenCalculator={() => setView("emi_calculator")}
               onOpenPartner={() => setView("partner_locator")}

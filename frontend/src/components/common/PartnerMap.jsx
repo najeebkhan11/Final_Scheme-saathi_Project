@@ -211,13 +211,27 @@ export default function PartnerMap({
       });
 
       userMarker.bindPopup(`
-        <div style="font-family: sans-serif; font-size: 12px; padding: 4px;">
-          <div style="font-weight: bold; color: #1769a8; margin-bottom: 2px;">📍 ${t("Your Location")}</div>
-          <div style="color: #4a5568; font-size: 11px;">${userLocation.label || t("GPS / Selected District")}</div>
+        <div style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; padding: 4px; min-width: 170px;">
+          <div style="display: flex; align-items: center; gap: 4px; font-weight: 700; color: #1769a8; margin-bottom: 3px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1769a8;"></span>
+            📍 ${t("Your Location")}
+          </div>
+          <div style="color: #2d3748; font-weight: 600; font-size: 11px; margin-bottom: 2px;">
+            ${userLocation.label || t("GPS Location")}
+          </div>
+          <div style="color: #718096; font-size: 10px;">
+            GPS: ${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}
+          </div>
         </div>
       `);
 
       userMarker.addTo(markersGroup);
+
+      if (userLocation.isGps || validPartners.length === 0) {
+        setTimeout(() => {
+          userMarker.openPopup();
+        }, 250);
+      }
     }
 
     // 2. Plot Channel Partner Markers
@@ -371,7 +385,9 @@ export default function PartnerMap({
     }
 
     // 4. Fit map to view all relevant markers nicely
-    if (bounds.isValid()) {
+    if (validPartners.length === 0 && userLatLng) {
+      map.setView(userLatLng, 13, { animate: true });
+    } else if (bounds.isValid()) {
       map.fitBounds(bounds, {
         padding: [45, 45],
         maxZoom: 14,
