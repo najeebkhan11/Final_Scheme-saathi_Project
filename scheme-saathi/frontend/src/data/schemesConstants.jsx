@@ -9,12 +9,15 @@ import {
   ShieldCheck,
   Building2,
   Banknote,
+  GraduationCap,
+  Users,
+  Leaf,
 } from "lucide-react";
 
 export const PRIMARY_SCHEMES = [
   {
     code: "MFS",
-    title: "Micro Finance Scheme",
+    title: "Micro Finance Scheme (MFS)",
     rate: "6.5% p.a.",
     limit: "Project cost up to ₹1.40 lakh",
     loan: "Loan up to ₹1.25 lakh",
@@ -37,7 +40,7 @@ export const PRIMARY_SCHEMES = [
   },
   {
     code: "AMY",
-    title: "Aajeevika Micro-Finance Yojana",
+    title: "Aajeevika Micro-Finance Yojana (AMY)",
     rate: "15% p.a.",
     limit: "Project cost up to ₹1.40 lakh",
     loan: "Loan up to ₹1.25 lakh",
@@ -60,7 +63,7 @@ export const PRIMARY_SCHEMES = [
   },
   {
     code: "TL",
-    title: "Term Loan",
+    title: "Term Loan (TL)",
     rate: "8% p.a.",
     limit: "Project cost above ₹1.40 lakh up to ₹50 lakh",
     loan: "Loan up to ₹45 lakh",
@@ -85,7 +88,7 @@ export const PRIMARY_SCHEMES = [
   },
   {
     code: "UNY",
-    title: "Udyam Nidhi Yojana",
+    title: "Udyam Nidhi Yojana (UNY)",
     rate: "13%–15% p.a.",
     limit: "Project cost up to ₹5 lakh",
     loan: "Loan up to ₹4.50 lakh",
@@ -110,7 +113,7 @@ export const PRIMARY_SCHEMES = [
   },
   {
     code: "ELS",
-    title: "Educational Loan Scheme",
+    title: "Educational Loan Scheme (ELS)",
     rate: "6.5% p.a.",
     limit: "Loan up to ₹40 lakh",
     loan: "Up to 90% of course fee, subject to scheme limit",
@@ -135,6 +138,120 @@ export const PRIMARY_SCHEMES = [
   },
 ];
 
+export const SECONDARY_SCHEMES = [
+  {
+    code: "VETLS",
+    title: "Vocational Education & Training Loan Scheme (VETLS)",
+    rate: "4% p.a. (0.5% rebate for women)",
+    limit: "Course duration up to 2 years, expenses covered",
+    loan: "Loan up to ₹4.00 lakh",
+    eligibility: [
+      "Scheduled Caste (SC) applicant",
+      "Valid caste certificate required",
+      "Annual family income up to ₹5 lakh",
+      "Enrolled in NSQF-compliant / recognized vocational training course",
+    ],
+    documents: [
+      "Valid caste certificate",
+      "Income proof",
+      "Identity / Aadhaar verification",
+      "Course admission / enrollment letter",
+      "Institute fee structure / prospectus",
+    ],
+    route: "SCAs / State Channelizing Agencies & Banks",
+    description: "Concessional skill and vocational training loan assisting SC youth in acquiring job-ready technical qualifications.",
+    icon: <GraduationCap size={23} />,
+  },
+  {
+    code: "MSY",
+    title: "Mahila Samriddhi Yojana (MSY)",
+    rate: "4% p.a.",
+    limit: "Project cost up to ₹1.40 lakh",
+    loan: "Loan up to ₹1.25 lakh (per beneficiary)",
+    eligibility: [
+      "Scheduled Caste (SC) women applicants",
+      "Valid caste certificate required",
+      "Annual family income up to ₹5 lakh",
+      "Women individual entrepreneurs or Self-Help Groups (SHGs)",
+    ],
+    documents: [
+      "Valid caste certificate",
+      "Income proof",
+      "Identity & address proof",
+      "SHG member roster / Micro-business proposal",
+    ],
+    route: "SCAs / Regional Rural Banks / Channel Partners",
+    description: "Exclusive micro-credit scheme providing concessional financing to SC women entrepreneurs and women SHGs for income-generating micro activities.",
+    icon: <Users size={23} />,
+  },
+  {
+    code: "MAY",
+    title: "Mahila Adhikarita Yojana (MAY)",
+    rate: "5% p.a.",
+    limit: "Project cost up to ₹2.00 lakh",
+    loan: "Loan up to ₹1.80 lakh",
+    eligibility: [
+      "Scheduled Caste (SC) women applicants",
+      "Valid caste certificate required",
+      "Annual family income up to ₹5 lakh",
+      "Eligible tiny/cottage, service, handicraft, or retail trade ventures",
+    ],
+    documents: [
+      "Valid caste certificate",
+      "Income proof",
+      "Identity / KYC documents",
+      "Business activity / equipment quotation details",
+    ],
+    route: "State Channelizing Agencies (SCAs)",
+    description: "Economic empowerment scheme providing direct low-interest micro-credit to SC women for establishing viable, independent micro and cottage enterprises.",
+    icon: <ShieldCheck size={23} />,
+  },
+  {
+    code: "GBS",
+    title: "Green Business Scheme (GBS)",
+    rate: "6%–7% p.a.",
+    limit: "Project cost up to ₹30 lakh",
+    loan: "Loan up to ₹27 lakh (up to 90% project cost)",
+    eligibility: [
+      "Scheduled Caste (SC) applicant / enterprise",
+      "Valid caste certificate required",
+      "Annual family income up to ₹5 lakh",
+      "Eco-friendly business: e-rickshaw, solar power, waste recycling, green farming",
+    ],
+    documents: [
+      "Valid caste certificate",
+      "Income proof",
+      "Detailed Project Report (DPR) for eco-friendly activity",
+      "Equipment / vehicle quotation",
+    ],
+    route: "SCAs / Channelizing Banks",
+    description: "Concessional financing promoting climate-friendly commercial activities, renewable energy solutions, clean mobility, and sustainable ventures.",
+    icon: <Leaf size={23} />,
+  },
+  {
+    code: "SUIS",
+    title: "Stand-Up India Scheme",
+    rate: "Bank Base Rate (MCLR) + 3% + Tenor Premium",
+    limit: "Project cost ₹10 lakh up to ₹1 crore",
+    loan: "Composite loan up to 85% of project cost",
+    eligibility: [
+      "SC / ST and/or Woman entrepreneur aged 18+",
+      "Greenfield enterprise in manufacturing, services, agri-allied, or trading",
+      "In non-individual enterprises, 51% shareholding held by SC/ST or woman",
+      "No previous default with any bank or financial institution",
+    ],
+    documents: [
+      "Caste / Category certificate",
+      "Identity, Address & PAN documents",
+      "Greenfield project report & projected financials",
+      "Last 6 months bank statements",
+    ],
+    route: "All Scheduled Commercial Banks / Stand-Up India Portal",
+    description: "Central Government flagship program enabling SC, ST, and women entrepreneurs to secure enterprise bank credit up to ₹1 Crore for greenfield projects.",
+    icon: <Banknote size={23} />,
+  },
+];
+
 export const PARTNER_LOAN_CATEGORIES = [
   { value: "", label: "All Loan Categories" },
   { value: "business", label: "Business / Self-Employment" },
@@ -152,6 +269,11 @@ export const PARTNER_SCHEMES = [
   { value: "TERM_LOAN", label: "Term Loan (TL)" },
   { value: "UNY", label: "Udyam Nidhi Yojana (UNY)" },
   { value: "ELS", label: "Educational Loan Scheme (ELS)" },
+  { value: "VETLS", label: "Vocational Education & Training Loan Scheme (VETLS)" },
+  { value: "MSY", label: "Mahila Samriddhi Yojana (MSY)" },
+  { value: "MAY", label: "Mahila Adhikarita Yojana (MAY)" },
+  { value: "GBS", label: "Green Business Scheme (GBS)" },
+  { value: "SUIS", label: "Stand-Up India Scheme" },
   { value: "VISVAS", label: "VISVAS Scheme" },
 ];
 

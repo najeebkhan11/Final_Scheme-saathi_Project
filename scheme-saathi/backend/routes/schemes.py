@@ -84,7 +84,7 @@ def get_secondary_schemes():
     secondary = [
         scheme
         for scheme in schemes
-        if scheme["type"] == "SECONDARY_CONNECTED"
+        if scheme["type"] in ("SECONDARY", "SECONDARY_CONNECTED")
     ]
 
     return {
