@@ -25,6 +25,7 @@ export default function AppNavbar({
   currentUser,
   onLogin,
   onLogout,
+  onOpenProfile,
 }) {
   const { language, setLanguage, isTranslating, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -111,10 +112,15 @@ export default function AppNavbar({
 
           {isLoggedIn ? (
             <div className="hidden items-center gap-2 sm:flex">
-              <div className="flex items-center gap-1.5 rounded-lg bg-[#eef7fb] px-3 py-1.5 text-[12px] sm:text-[13px] font-semibold text-[#145c91]">
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                title="Click to view/edit profile & change password"
+                className="flex items-center gap-1.5 rounded-lg bg-[#eef7fb] hover:bg-[#d8effa] border border-[#c6e4f5] px-3 py-1.5 text-[12px] sm:text-[13px] font-semibold text-[#145c91] transition cursor-pointer shadow-xs active:scale-95"
+              >
                 <UserRound size={15} />
-                <span className="max-w-[100px] truncate">{currentUser?.name || "Account"}</span>
-              </div>
+                <span className="max-w-[120px] truncate">{currentUser?.name || "Account"}</span>
+              </button>
               <button
                 onClick={onLogout}
                 className="rounded-lg border border-[#cfd8e3] px-3 py-1.5 text-[12px] sm:text-[13px] font-semibold text-[#52677d] transition hover:bg-[#f5f8fb] hover:text-[#c53030]"
@@ -172,11 +178,18 @@ export default function AppNavbar({
 
           <div className="mt-4 border-t border-[#e2e8f0] pt-3">
             {isLoggedIn ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#145c91]">
-                  <UserRound size={15} />
-                  <span>{currentUser?.name || "Account"}</span>
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onOpenProfile) onOpenProfile();
+                  }}
+                  className="flex items-center gap-2 text-xs font-semibold text-[#145c91] bg-[#eef7fb] px-2.5 py-1.5 rounded-lg hover:bg-[#d8effa] text-left truncate"
+                >
+                  <UserRound size={15} className="shrink-0" />
+                  <span className="truncate">{currentUser?.name || "Account"} (Edit Profile)</span>
+                </button>
                 <button
                   onClick={() => {
                     onLogout();

@@ -443,11 +443,10 @@ def submit_application(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         try:
-            from jose import jwt
-            from services.auth import SECRET_KEY, ALGORITHM
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("user_id")
-            if user_id:
+            from services.auth import decode_token
+            payload = decode_token(token)
+            if payload and "sub" in payload:
+                user_id = int(payload["sub"])
                 with get_db() as conn:
                     cursor = conn.cursor()
                     cursor.execute("SELECT name, identifier FROM users WHERE id = ?", (user_id,))

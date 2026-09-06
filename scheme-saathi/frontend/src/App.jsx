@@ -18,6 +18,7 @@ const DocumentsPage = lazy(() => import("./components/DocumentsPage"));
 const TrackApplication = lazy(() => import("./components/TrackApplication"));
 const RecommendationsPage = lazy(() => import("./components/RecommendationsPage"));
 const AdminPortal = lazy(() => import("./components/AdminPortal"));
+import UserProfileModal from "./components/UserProfileModal";
 
 // Preload remaining views during browser idle time
 if (typeof window !== "undefined") {
@@ -81,6 +82,7 @@ function AppContent() {
   const [selectedSchemeForPartner, setSelectedSchemeForPartner] = useState("");
   const [aiInitialQuery, setAiInitialQuery] = useState("");
   const [selectedTrackAppId, setSelectedTrackAppId] = useState("");
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // Pre-warm locations in memory during idle time
   useEffect(() => {
@@ -135,6 +137,7 @@ function AppContent() {
           currentUser={currentUser}
           onLogin={() => setView("login")}
           onLogout={handleLogout}
+          onOpenProfile={() => setProfileModalOpen(true)}
         />
       )}
 
@@ -191,6 +194,13 @@ function AppContent() {
             <SchemeFinder
               onBack={() => setView("home")}
               isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+              onNavigate={(page, appId = "") => {
+                if (appId && page === "track_application") {
+                  setSelectedTrackAppId(appId);
+                }
+                setView(page);
+              }}
               onResultsReady={(results, formData) => {
                 setLastSchemeResults(results);
                 setLastSchemeFormData(formData);
@@ -295,6 +305,20 @@ function AppContent() {
           )}
         </Suspense>
       </div>
+
+      <UserProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        currentUser={currentUser}
+        onUserUpdated={(updatedUser) => {
+          setCurrentUser(updatedUser);
+        }}
+        onTrackApplication={(appId) => {
+          setSelectedTrackAppId(appId);
+          setView("track_application");
+          setProfileModalOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -2,8 +2,16 @@ from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Any, Dict
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 class UserProfileRequest(BaseModel):
     name: Optional[str] = None
+    identifier: Optional[str] = None
+    mobile: Optional[str] = None
+    phone: Optional[str] = None
     age: Optional[str] = None
     gender: Optional[str] = None
     category: Optional[str] = None
@@ -31,6 +39,8 @@ class UserProfileRequest(BaseModel):
         if isinstance(data, dict):
             mapping = {
                 "fullName": "name",
+                "phone": "identifier",
+                "mobile": "identifier",
                 "annualIncome": "annual_income",
                 "businessType": "business_type",
                 "projectStage": "project_stage",

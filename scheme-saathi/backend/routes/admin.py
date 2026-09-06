@@ -196,7 +196,9 @@ def get_all_users():
             """
             SELECT 
                 u.id, u.name, u.identifier, u.created_at,
-                p.category, p.state, p.district, p.annual_income, p.purpose, p.required_loan
+                p.category, p.state, p.district, p.annual_income,
+                COALESCE(p.purpose, (SELECT a.purpose FROM user_applications a WHERE a.user_id = u.id ORDER BY a.created_at DESC LIMIT 1)) as purpose,
+                COALESCE(p.required_loan, (SELECT a.loan_amount FROM user_applications a WHERE a.user_id = u.id ORDER BY a.created_at DESC LIMIT 1)) as required_loan
             FROM users u
             LEFT JOIN user_profiles p ON u.id = p.user_id
             ORDER BY u.created_at DESC

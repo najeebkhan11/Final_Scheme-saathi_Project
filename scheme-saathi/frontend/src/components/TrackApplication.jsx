@@ -60,10 +60,14 @@ export default function TrackApplication({
       .then((data) => {
         if (data?.applications?.length > 0) {
           setMyApplications(data.applications);
+          if (!initialApplicationId) {
+            setStatus(data.applications[0]);
+            setApplicationId(data.applications[0].application_id);
+          }
         }
       })
       .catch(() => {});
-  }, [isLoggedIn]);
+  }, [isLoggedIn, initialApplicationId]);
 
   // If navigated with an initial application ID, track it immediately
   useEffect(() => {
@@ -141,7 +145,7 @@ export default function TrackApplication({
         // ignore
       }
       setSearchError(
-        "Unable to connect to the backend server. Please verify the backend is running on port 8000."
+        "Unable to connect to the backend server. Please verify your connection."
       );
       setStatus(null);
     } finally {
@@ -274,6 +278,33 @@ export default function TrackApplication({
               </button>
             </div>
           </div>
+
+          {/* Quick Selector for Logged In User's Applications */}
+          {myApplications.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-[#f4f9fd] border border-[#d6e7f3] p-3 text-xs">
+              <span className="font-bold text-[#145c91] flex items-center gap-1.5">
+                <FileText size={14} /> {t("Your Applications:")}
+              </span>
+              {myApplications.map((app) => (
+                <button
+                  key={app.application_id}
+                  type="button"
+                  onClick={() => {
+                    setApplicationId(app.application_id);
+                    setStatus(app);
+                    setSearchError("");
+                  }}
+                  className={`rounded-lg px-2.5 py-1 font-mono font-semibold transition cursor-pointer ${
+                    status?.application_id === app.application_id
+                      ? "bg-[#145c91] text-white shadow-xs"
+                      : "bg-white text-[#145c91] border border-[#bcdbf0] hover:bg-[#e4f2fb]"
+                  }`}
+                >
+                  {app.application_id} ({app.scheme_name})
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Search Inputs */}
           {searchTab === "id" ? (
