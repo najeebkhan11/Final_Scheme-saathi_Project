@@ -125,16 +125,35 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ============================================================
-# ROOT API
+# ROOT API & HEALTH CHECK
 # ============================================================
 
-@app.get("/")
-def root():
+candidates = [
+    Path(__file__).resolve().parent.parent / "frontend" / "dist",
+    Path(__file__).resolve().parent / "frontend" / "dist",
+    Path("/app/frontend/dist"),
+]
+FRONTEND_DIST = next((p for p in candidates if p.exists() and (p / "index.html").exists()), None)
 
+
+@app.get("/api")
+def api_root():
     return {
         "message": "Scheme Saathi backend is running",
         "status": "ok",
-        "version": "1.0.0"
+        "version": "1.0.0",
+    }
+
+
+@app.get("/")
+def root():
+    if FRONTEND_DIST and (FRONTEND_DIST / "index.html").is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(FRONTEND_DIST / "index.html")
+    return {
+        "message": "Scheme Saathi backend is running",
+        "status": "ok",
+        "version": "1.0.0",
     }
 
 
@@ -173,6 +192,29 @@ app.include_router(applications_router)
 app.include_router(documents_router)
 
 app.include_router(admin_router)
+
+
+# ============================================================
+# STATIC FRONTEND ASSETS & SPA ROUTING
+# ============================================================
+
+if FRONTEND_DIST and (FRONTEND_DIST / "index.html").is_file():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    from fastapi import HTTPException
+
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api" or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+        file_path = FRONTEND_DIST / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
 
 # ============================================================

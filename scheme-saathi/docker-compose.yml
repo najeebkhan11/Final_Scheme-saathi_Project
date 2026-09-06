@@ -1,0 +1,19 @@
+﻿services:
+  scheme-saathi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scheme-saathi-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ADMIN_DATA_DIR=/app/Admin_Data
+      - DATABASE_PATH=/app/backend/scheme_saathi.db
+    env_file:
+      - .env
+    volumes:
+      - ./backend/scheme_saathi.db:/app/backend/scheme_saathi.db
+      - ../Admin_Data:/app/Admin_Data
