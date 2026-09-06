@@ -16,7 +16,6 @@ import {
   X,
   Phone,
   Send,
-  Loader2,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { apiCache } from "../services/apiCache";
@@ -1281,24 +1280,15 @@ function StepFive({ formData }) {
   );
 }
 
-function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onHome }) {
-  const primaryEligible = Array.isArray(results?.primary?.eligible)
-    ? results.primary.eligible
-    : [];
-
-  const primaryIneligible = Array.isArray(results?.primary?.ineligible)
-    ? results.primary.ineligible
-    : [];
-
-  const secondaryEligible = Array.isArray(results?.secondary?.eligible)
-    ? results.secondary.eligible
-    : [];
-
-  const primaryMatchCount = primaryEligible.length;
-  const secondaryMatchCount = secondaryEligible.length;
-  const topScheme = primaryEligible[0] || null;
-
-  // Application submission states
+function SchemeResults({
+  results,
+  formData,
+  currentUser,
+  onNavigate,
+  onBack,
+  onHome,
+}) {
+  // Application submission states inside SchemeResults
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [selectedSchemeToApply, setSelectedSchemeToApply] = useState(null);
   const [applicantNameInput, setApplicantNameInput] = useState("");
@@ -1308,10 +1298,14 @@ function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onH
   const [applyError, setApplyError] = useState("");
 
   const handleInitiateApply = (scheme) => {
-    const target = scheme || topScheme || (results?.schemes || []).find((s) => s.is_eligible) || results?.schemes?.[0];
+    const target =
+      scheme ||
+      (results?.primary?.eligible || [])[0] ||
+      (results?.schemes || []).find((s) => s.is_eligible) ||
+      results?.schemes?.[0];
     if (!target) return;
     setSelectedSchemeToApply(target);
-    setApplicantNameInput(currentUser?.name || formData.fullName || "");
+    setApplicantNameInput(currentUser?.name || formData?.fullName || "");
     setMobileInput(currentUser?.identifier || "");
     setApplyError("");
     setApplyModalOpen(true);
@@ -1323,7 +1317,7 @@ function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onH
       setApplyError("Please enter a valid 10-digit Indian mobile number to register and track your application.");
       return;
     }
-    const nameClean = applicantNameInput.trim() || formData.fullName || currentUser?.name || "Applicant";
+    const nameClean = applicantNameInput.trim() || formData?.fullName || currentUser?.name || "Applicant";
 
     setIsApplying(true);
     setApplyError("");
@@ -1337,10 +1331,10 @@ function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onH
     const payload = {
       applicant_name: nameClean,
       mobile: phoneClean,
-      scheme_id: selectedSchemeToApply?.scheme_id || "TL",
-      scheme_name: selectedSchemeToApply?.scheme_name || "Term Loan",
-      loan_amount: formatCurrency(formData.requiredLoan || 150000),
-      purpose: formatValue(formData.purpose || "new_business"),
+      scheme_id: selectedSchemeToApply?.scheme_id || selectedSchemeToApply?.code || "TL",
+      scheme_name: selectedSchemeToApply?.scheme_name || selectedSchemeToApply?.title || "Term Loan",
+      loan_amount: formatCurrency(formData?.requiredLoan || 150000),
+      purpose: formatValue(formData?.purpose || "new_business"),
       authority: "National Scheduled Castes Finance and Development Corporation (NSFDC)",
     };
 
@@ -1377,6 +1371,22 @@ function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onH
       setIsApplying(false);
     }
   };
+
+  const primaryEligible = Array.isArray(results?.primary?.eligible)
+    ? results.primary.eligible
+    : [];
+
+  const primaryIneligible = Array.isArray(results?.primary?.ineligible)
+    ? results.primary.ineligible
+    : [];
+
+  const secondaryEligible = Array.isArray(results?.secondary?.eligible)
+    ? results.secondary.eligible
+    : [];
+
+  const primaryMatchCount = primaryEligible.length;
+  const secondaryMatchCount = secondaryEligible.length;
+  const topScheme = primaryEligible[0] || null;
 
   const backendMatchScore =
     results?.match_score ??
@@ -1485,7 +1495,7 @@ function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onH
 
               <div className="flex flex-wrap items-center gap-3">
                 <button
-                  onClick={() => onNavigate ? onNavigate("track") : null}
+                  onClick={() => onNavigate ? onNavigate("track_application") : null}
                   className="flex items-center gap-2 rounded-xl bg-[#145c91] px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#104d7b]"
                 >
                   <FileText size={15} />
