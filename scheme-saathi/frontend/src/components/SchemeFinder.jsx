@@ -294,7 +294,7 @@ export default function SchemeFinder({
     const autoSubmitApplication = async (normRes) => {
       const token = localStorage.getItem("scheme_saathi_token");
       if (!token) return;
-      const top = normRes?.topScheme || normRes?.primaryEligible?.[0];
+      const top = normRes?.best_scheme || normRes?.primary?.eligible?.[0] || normRes?.topScheme;
       if (!top) return;
 
       try {
@@ -457,6 +457,9 @@ export default function SchemeFinder({
       <SchemeResults
         results={results}
         formData={formData}
+        currentUser={currentUser}
+        submittedApp={submittedApp}
+        onNavigate={onNavigate}
         onBack={() => {
           setResults(null);
           setStep(5);
@@ -1318,7 +1321,15 @@ function StepFive({ formData }) {
   );
 }
 
-function SchemeResults({ results, formData, onBack, onHome }) {
+function SchemeResults({
+  results,
+  formData,
+  currentUser,
+  submittedApp,
+  onNavigate,
+  onBack,
+  onHome,
+}) {
   const primaryEligible = Array.isArray(results?.primary?.eligible)
     ? results.primary.eligible
     : [];
