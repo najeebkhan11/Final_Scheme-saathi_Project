@@ -33,26 +33,14 @@ export default class ErrorBoundary extends React.Component {
           <p className="mt-2 max-w-md text-sm text-[#61738d]">
             Unable to display this view right now. Your session and saved data are safe. Please reload to continue.
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={this.handleReset}
-              className="flex items-center gap-2 rounded-lg bg-[#145c91] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#114b77] cursor-pointer"
-            >
-              <RotateCcw size={16} />
-              <span>Reload Application</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                this.setState({ hasError: false, error: null });
-                window.location.href = window.location.origin;
-              }}
-              className="flex items-center gap-2 rounded-lg border border-[#cfdbe3] bg-white px-6 py-3 text-sm font-semibold text-[#253b52] shadow-sm transition hover:bg-[#f7fafc] cursor-pointer"
-            >
-              <span>Back to Home</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={this.handleReset}
+            className="mt-6 flex items-center gap-2 rounded-lg bg-[#145c91] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#114b77]"
+          >
+            <RotateCcw size={16} />
+            <span>Reload Application</span>
+          </button>
         </div>
       );
     }

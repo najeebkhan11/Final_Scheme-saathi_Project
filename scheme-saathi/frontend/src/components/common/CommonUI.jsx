@@ -358,6 +358,7 @@ export function EligibleSchemeCard({
   formData,
   featured = false,
   secondary = false,
+  onApply = null,
 }) {
   const { t } = useTranslation();
   const schemeMatchScore = shouldExcludeForGender(scheme, formData)
@@ -370,64 +371,79 @@ export function EligibleSchemeCard({
   return (
     <div
       className={[
-        "rounded-2xl border bg-white p-6 shadow-sm",
+        "rounded-2xl border bg-white p-6 shadow-sm flex flex-col justify-between",
         featured ? "border-2 border-[#35536a]" : "border-[#d8e3e9]",
       ].join(" ")}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#e7f3f8] px-3 py-1 text-[10px] font-bold tracking-[0.1em] text-[#1769a8]">
-              {scheme.scheme_id}
-            </span>
-            <span
-              className={[
-                "rounded-full px-3 py-1 text-[10px] font-bold",
-                secondary
-                  ? "bg-[#f1eef9] text-[#675685]"
-                  : "bg-[#edf6ec] text-[#47744a]",
-              ].join(" ")}
-            >
-              {secondary ? t("CONNECTED SUPPORT") : t("ELIGIBLE")}
-            </span>
-            <span className="rounded-full bg-[#eaf5fa] px-3 py-1 text-[10px] font-bold text-[#145c91]">
-              {schemeMatchScore}{t("% MATCH")}
-            </span>
+      <div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-[#e7f3f8] px-3 py-1 text-[10px] font-bold tracking-[0.1em] text-[#1769a8]">
+                {scheme.scheme_id}
+              </span>
+              <span
+                className={[
+                  "rounded-full px-3 py-1 text-[10px] font-bold",
+                  secondary
+                    ? "bg-[#f1eef9] text-[#675685]"
+                    : "bg-[#edf6ec] text-[#47744a]",
+                ].join(" ")}
+              >
+                {secondary ? t("CONNECTED SUPPORT") : t("ELIGIBLE")}
+              </span>
+              <span className="rounded-full bg-[#eaf5fa] px-3 py-1 text-[10px] font-bold text-[#145c91]">
+                {schemeMatchScore}{t("% MATCH")}
+              </span>
+            </div>
+
+            <h3 className="mt-4 font-serif text-xl font-bold text-[#20344b]">
+              {scheme.scheme_name}
+            </h3>
           </div>
 
-          <h3 className="mt-4 font-serif text-xl font-bold text-[#20344b]">
-            {scheme.scheme_name}
-          </h3>
+          <CheckCircle2 size={21} className="shrink-0 text-[#3d9a87]" />
         </div>
 
-        <CheckCircle2 size={21} className="shrink-0 text-[#3d9a87]" />
-      </div>
-
-      <div className="mt-5 rounded-xl bg-[#f7fafc] p-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8995a0]">
-          {t("Why it matched")}
-        </p>
-        {reasons.length === 0 ? (
-          <p className="mt-3 text-xs text-[#718096]">
-            {t("Eligibility criteria were satisfied according to the backend rule engine.")}
+        <div className="mt-5 rounded-xl bg-[#f7fafc] p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8995a0]">
+            {t("Why it matched")}
           </p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {reasons.map((reason) => (
-              <ReasonRow key={reason} text={reason} />
-            ))}
+          {reasons.length === 0 ? (
+            <p className="mt-3 text-xs text-[#718096]">
+              {t("Eligibility criteria were satisfied according to the backend rule engine.")}
+            </p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {reasons.map((reason) => (
+                <ReasonRow key={reason} text={reason} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {scheme.gender_status?.message && (
+          <div className="mt-4 rounded-lg bg-[#fbf7ee] p-3 text-xs leading-5 text-[#756447]">
+            {scheme.gender_status.message}
           </div>
         )}
       </div>
 
-      {scheme.gender_status?.message && (
-        <div className="mt-4 rounded-lg bg-[#fbf7ee] p-3 text-xs leading-5 text-[#756447]">
-          {scheme.gender_status.message}
+      {onApply && (
+        <div className="mt-5 border-t border-[#edf2f6] pt-4 flex items-center justify-between">
+          <span className="text-xs text-[#6e7f91]">Ready to apply for this scheme?</span>
+          <button
+            onClick={() => onApply(scheme)}
+            className="rounded-xl bg-[#1769a8] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#125385] active:scale-[0.98]"
+          >
+            Apply Now →
+          </button>
         </div>
       )}
     </div>
   );
 }
+
 
 export function EmptyState({ title, text }) {
   return (

@@ -5,6 +5,7 @@ import {
   Bot,
   Calculator,
   Check,
+  CheckCircle2,
   FileText,
   LockKeyhole,
   MapPin,
@@ -12,7 +13,9 @@ import {
   UserRound,
   AlertCircle,
   ShieldCheck,
-  CheckCircle2,
+  X,
+  Phone,
+  Send,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { apiCache } from "../services/apiCache";
@@ -43,7 +46,6 @@ export default function SchemeFinder({
   onResultsReady,
 }) {
   const [step, setStep] = useState(1);
-  const [submittedApp, setSubmittedApp] = useState(null);
   const [formData, setFormData] = useState({
     fullName: "",
     age: "",
@@ -71,6 +73,86 @@ export default function SchemeFinder({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // Application submission states
+  const [applyModalOpen, setApplyModalOpen] = useState(false);
+  const [selectedSchemeToApply, setSelectedSchemeToApply] = useState(null);
+  const [applicantNameInput, setApplicantNameInput] = useState("");
+  const [mobileInput, setMobileInput] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+  const [applySuccessData, setApplySuccessData] = useState(null);
+  const [applyError, setApplyError] = useState("");
+
+  const handleInitiateApply = (scheme) => {
+    const target = scheme || (results?.schemes || []).find((s) => s.is_eligible) || results?.schemes?.[0];
+    if (!target) return;
+    setSelectedSchemeToApply(target);
+    setApplicantNameInput(currentUser?.name || formData.fullName || "");
+    setMobileInput(currentUser?.identifier || "");
+    setApplyError("");
+    setApplyModalOpen(true);
+  };
+
+  const handleConfirmSubmitApplication = async () => {
+    const phoneClean = mobileInput.replace(/\D/g, "");
+    if (!phoneClean || phoneClean.length !== 10) {
+      setApplyError("Please enter a valid 10-digit Indian mobile number to register and track your application.");
+      return;
+    }
+    const nameClean = applicantNameInput.trim() || formData.fullName || currentUser?.name || "Applicant";
+
+    setIsApplying(true);
+    setApplyError("");
+
+    const token = localStorage.getItem("scheme_saathi_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const payload = {
+      applicant_name: nameClean,
+      mobile: phoneClean,
+      scheme_id: selectedSchemeToApply?.scheme_id || "TL",
+      scheme_name: selectedSchemeToApply?.scheme_name || "Term Loan",
+      loan_amount: formatCurrency(formData.requiredLoan || 150000),
+      purpose: formatValue(formData.purpose || "new_business"),
+      authority: "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+    };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/applications/submit`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const app = data.application || data;
+        setApplySuccessData(app);
+        setApplyModalOpen(false);
+
+        // Cache in localStorage for client-side instant tracking fallback
+        try {
+          const saved = JSON.parse(localStorage.getItem("scheme_saathi_applications") || "{}");
+          saved[app.application_id] = app;
+          if (app.mobile) saved[app.mobile] = app;
+          localStorage.setItem("scheme_saathi_applications", JSON.stringify(saved));
+          localStorage.setItem("scheme_saathi_recent_track", app.application_id);
+        } catch {
+          // ignore
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setApplyError(err.detail || "Failed to submit application. Please check details.");
+      }
+    } catch {
+      setApplyError("Could not reach backend server to submit application.");
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   // Check if all required entries for the given step are completed by the user
   const isStepComplete = (stepNumber) => {
@@ -290,63 +372,22 @@ export default function SchemeFinder({
       district: formData.district,
     });
 
-    // Helper to auto-create application for the top matched scheme
-    const autoSubmitApplication = async (normRes) => {
-      const token = localStorage.getItem("scheme_saathi_token");
-      if (!token) return;
-      const top = normRes?.best_scheme || normRes?.primary?.eligible?.[0] || normRes?.topScheme;
-      if (!top) return;
-
-      try {
-        const appRes = await fetch(`${API_BASE_URL}/api/applications/submit`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            applicant_name: currentUser?.name || formData.fullName || "Applicant",
-            mobile: currentUser?.identifier || formData.mobile || "",
-            scheme_id: top.scheme_id || "TL",
-            scheme_name: top.scheme_name || "Term Loan",
-            loan_amount: formData.requiredLoan
-              ? `₹ ${Number(formData.requiredLoan).toLocaleString("en-IN")}`
-              : "₹ 1,50,000",
-            purpose: formData.purpose || "New Business",
-          }),
-        });
-        if (appRes.ok) {
-          const appData = await appRes.json();
-          if (appData?.application) {
-            setSubmittedApp(appData.application);
-          }
-        }
-      } catch (e) {
-        console.error("Auto submit application error:", e);
-      }
-    };
-
     // Persist profile to SQLite for logged-in user
     const token = localStorage.getItem("scheme_saathi_token");
     if (token) {
-      try {
-        await fetch(`${API_BASE_URL}/api/auth/profile`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData),
-        });
-      } catch (e) {
-        console.error("Profile sync error:", e);
-      }
+      fetch(`${API_BASE_URL}/api/auth/profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      }).catch(() => {});
     }
 
     const cached = apiCache.getSchemeMatch(profileKey);
     if (cached) {
       setResults(cached);
-      autoSubmitApplication(cached);
       if (onResultsReady) {
         onResultsReady(cached, formData);
       }
@@ -397,7 +438,6 @@ export default function SchemeFinder({
       apiCache.saveRecommendations(normalizedResults, formData);
 
       setResults(normalizedResults);
-      autoSubmitApplication(normalizedResults);
 
       if (onResultsReady) {
         onResultsReady(normalizedResults, formData);
@@ -457,9 +497,6 @@ export default function SchemeFinder({
       <SchemeResults
         results={results}
         formData={formData}
-        currentUser={currentUser}
-        submittedApp={submittedApp}
-        onNavigate={onNavigate}
         onBack={() => {
           setResults(null);
           setStep(5);
@@ -1321,15 +1358,7 @@ function StepFive({ formData }) {
   );
 }
 
-function SchemeResults({
-  results,
-  formData,
-  currentUser,
-  submittedApp,
-  onNavigate,
-  onBack,
-  onHome,
-}) {
+function SchemeResults({ results, formData, onBack, onHome }) {
   const primaryEligible = Array.isArray(results?.primary?.eligible)
     ? results.primary.eligible
     : [];
@@ -1392,35 +1421,6 @@ function SchemeResults({
       </header>
 
       <main className="mx-auto max-w-[1200px] px-6 py-10 pb-20">
-        {submittedApp && (
-          <div className="mb-6 rounded-2xl border-2 border-[#145c91] bg-[#eef7fb] p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#145c91] text-white shrink-0">
-                <CheckCircle2 size={24} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#145c91]">Application Submitted</span>
-                  <span className="rounded-md bg-[#145c91] text-white px-2 py-0.5 text-xs font-mono font-bold">{submittedApp.application_id}</span>
-                </div>
-                <p className="text-sm font-semibold text-[#14283f] mt-1">
-                  Your application for <span className="font-bold">{submittedApp.scheme_name}</span> has been saved and forwarded for Document Verification.
-                </p>
-                <p className="text-xs text-[#52677d] mt-0.5">
-                  Applicant: <span className="font-semibold text-[#14283f]">{submittedApp.applicant_name}</span> • Registered Mobile: <span className="font-semibold text-[#14283f]">{submittedApp.mobile_masked || submittedApp.mobile}</span>
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate && onNavigate("track_application", submittedApp.application_id)}
-              className="rounded-xl bg-[#145c91] hover:bg-[#0f4670] text-white px-5 py-2.5 text-xs font-bold shadow transition flex items-center gap-2 shrink-0 cursor-pointer"
-            >
-              Track Status Real-Time <ArrowRight size={15} />
-            </button>
-          </div>
-        )}
-
         <div className="rounded-2xl border border-[#cee0e8] bg-[#eaf6fa] p-7">
           <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center md:gap-10">
             <div className="min-w-0">
@@ -1454,6 +1454,51 @@ function SchemeResults({
             </div>
           </div>
         </div>
+
+        {applySuccessData && (
+          <div className="mt-8 rounded-2xl border-2 border-[#20835c] bg-[#eef8f3] p-7 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#20835c] text-white shadow-sm">
+                  <CheckCircle2 size={26} />
+                </div>
+                <div>
+                  <span className="rounded bg-[#20835c]/20 px-2.5 py-0.5 text-xs font-bold text-[#1a6e4d]">
+                    APPLICATION SUBMITTED SUCCESSFULLY
+                  </span>
+                  <h3 className="mt-1 font-serif text-2xl font-bold text-[#14283e]">
+                    Application ID: <span className="font-mono text-[#145c91]">{applySuccessData.application_id}</span>
+                  </h3>
+                  <p className="mt-1 text-xs text-[#4f6479]">
+                    Registered for: <strong className="text-[#172a43]">{applySuccessData.applicant_name}</strong> · Mobile:{" "}
+                    <strong className="text-[#172a43]">{applySuccessData.mobile_masked || applySuccessData.mobile}</strong> · Scheme:{" "}
+                    <strong className="text-[#172a43]">{applySuccessData.scheme_name}</strong>
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#20835c] font-semibold">
+                    Status: Stage 1 - Application Submitted (Sent to Author Desk for Scrutiny)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => onNavigate ? onNavigate("track") : null}
+                  className="flex items-center gap-2 rounded-xl bg-[#145c91] px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#104d7b]"
+                >
+                  <FileText size={15} />
+                  <span>Track Application Status</span>
+                </button>
+                <button
+                  onClick={() => onNavigate ? onNavigate("admin_portal") : null}
+                  className="flex items-center gap-2 rounded-xl border border-[#145c91] bg-white px-5 py-3 text-xs font-bold text-[#145c91] shadow-sm transition hover:bg-[#f0f7fc]"
+                >
+                  <ShieldCheck size={15} />
+                  <span>Open Author Desk</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {topScheme && (
           <section className="mt-8">
@@ -1511,30 +1556,30 @@ function SchemeResults({
                   </div>
                 </div>
               )}
-              <div className="mt-6 pt-5 border-t border-[#e2eaf0] flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-[#52677d]">
-                  <span>Applicant: </span>
-                  <span className="font-bold text-[#14283f]">{currentUser?.name || formData.fullName || "Citizen"}</span>
-                  {currentUser?.identifier && (
-                    <span className="text-[#52677d]"> ({currentUser.identifier})</span>
-                  )}
-                  {submittedApp && (
-                    <span className="ml-2 font-mono text-[#145c91] font-semibold bg-[#eef7fb] px-2 py-0.5 rounded">
-                      ID: {submittedApp.application_id}
-                    </span>
-                  )}
+
+              {/* Action Callout: Submit Application to Author Desk */}
+              <div className="mt-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-[#e2edf3] pt-6">
+                <div>
+                  <p className="text-sm font-bold text-[#1f374e]">
+                    Ready to proceed with this 95% matched scheme?
+                  </p>
+                  <p className="text-xs text-[#6e7f91]">
+                    Submit your application for immediate scrutiny by the Author & Channel Partner.
+                  </p>
                 </div>
                 <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate("track_application", submittedApp?.application_id || "")}
-                  className="flex items-center gap-2 rounded-xl bg-[#145c91] hover:bg-[#0f4670] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition cursor-pointer"
+                  onClick={() => handleInitiateApply(topScheme)}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#1769a8] px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#125385] active:scale-[0.98]"
                 >
-                  <FileText size={15} /> Track Application Status
+                  <Sparkles size={16} />
+                  <span>Submit & Apply for this Scheme</span>
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </div>
           </section>
         )}
+
 
         <section className="mt-10">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -1564,6 +1609,7 @@ function SchemeResults({
                   scheme={scheme}
                   formData={formData}
                   featured={scheme.scheme_id === topScheme?.scheme_id}
+                  onApply={(s) => handleInitiateApply(s)}
                 />
               ))}
             </div>
@@ -1714,6 +1760,127 @@ function SchemeResults({
           {formData.state ? formatValue(formData.state) : "Location not provided"}
         </div>
       </main>
+
+      {/* Application Submission Modal */}
+      {applyModalOpen && selectedSchemeToApply && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-[#d6e3ec] overflow-hidden">
+            {/* Header */}
+            <div className="border-b border-[#e5eff5] bg-[#f8fbfe] px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1769a8] text-white shadow-sm">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#14283e]">
+                    Submit Scheme Application
+                  </h3>
+                  <p className="text-xs text-[#5a7288]">
+                    Selected: <strong className="text-[#1769a8]">{selectedSchemeToApply.scheme_name}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setApplyModalOpen(false)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body Form */}
+            <div className="p-6 space-y-4">
+              {applyError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{applyError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#49637b] mb-1.5">
+                  Applicant Full Name
+                </label>
+                <input
+                  type="text"
+                  value={applicantNameInput}
+                  onChange={(e) => setApplicantNameInput(e.target.value)}
+                  placeholder="e.g. Beast"
+                  className="w-full rounded-xl border border-[#cbd9e3] bg-[#fbfdfd] px-4 py-2.5 text-sm text-[#14283e] focus:border-[#1769a8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1769a8]/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#49637b] mb-1.5">
+                  Registered Mobile Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-sm font-semibold text-gray-400">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    value={mobileInput}
+                    onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, ""))}
+                    placeholder="e.g. 9151541727"
+                    className="w-full rounded-xl border border-[#cbd9e3] bg-[#fbfdfd] pl-12 pr-4 py-2.5 text-sm text-[#14283e] font-mono focus:border-[#1769a8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1769a8]/20"
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-[#6d8498]">
+                  You will use this mobile number to track real-time progress on the Track Application page.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#e2edf3] bg-[#f6fafc] p-4 text-xs text-[#4f677d] space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Required Loan Amount:</span>
+                  <strong className="text-[#14283e]">{formatCurrency(formData.requiredLoan || 150000)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Purpose / Trade:</span>
+                  <strong className="text-[#14283e]">{formatValue(formData.purpose || "new_business")}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Category & State:</span>
+                  <strong className="text-[#14283e]">
+                    {formData.category || "SC"} · {formData.state || "Uttar Pradesh"}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-[#eaf1f6] bg-[#fbfdfe] px-6 py-4 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setApplyModalOpen(false)}
+                className="rounded-xl border border-[#cbd9e3] bg-white px-4 py-2 text-xs font-bold text-[#44607a] hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSubmitApplication}
+                disabled={isApplying}
+                className="flex items-center gap-2 rounded-xl bg-[#1769a8] px-6 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#125385] disabled:opacity-50 transition"
+              >
+                {isApplying ? (
+                  <>
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Submitting Application...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    <span>Confirm & Submit Application</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

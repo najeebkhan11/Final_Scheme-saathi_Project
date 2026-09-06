@@ -11,6 +11,7 @@ __pycache__/
 
 *.log
 *.db
+!backend/scheme_saathi.db
 *.sqlite
 .DS_Store
 .vscode/

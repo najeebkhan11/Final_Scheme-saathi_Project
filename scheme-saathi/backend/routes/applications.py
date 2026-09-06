@@ -443,19 +443,56 @@ def submit_application(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         try:
-            from services.auth import decode_token
-            payload = decode_token(token)
-            if payload and "sub" in payload:
-                user_id = int(payload["sub"])
+            from jose import jwt
+            from services.auth import SECRET_KEY, ALGORITHM
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("user_id")
+            if user_id:
                 with get_db() as conn:
                     cursor = conn.cursor()
                     cursor.execute("SELECT name, identifier FROM users WHERE id = ?", (user_id,))
                     user_row = cursor.fetchone()
                     if user_row:
-                        applicant_name = user_row["name"]
-                        mobile = user_row["identifier"]
+                        if not request.applicant_name or request.applicant_name == "Applicant":
+                            applicant_name = user_row["name"]
+                        if not request.mobile or request.mobile == "9876543210":
+                            mobile = user_row["identifier"]
         except Exception:
             pass
+
+    # Ensure user is registered in users & user_profiles table so they appear in Author Desk
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not user_id and mobile:
+            cursor.execute("SELECT id, name FROM users WHERE identifier = ?", (mobile,))
+            existing_user = cursor.fetchone()
+            if existing_user:
+                user_id = existing_user["id"]
+                if not applicant_name or applicant_name == "Applicant":
+                    applicant_name = existing_user["name"]
+            else:
+                cursor.execute(
+                    "INSERT INTO users (name, identifier, password_hash) VALUES (?, ?, 'auto_citizen')",
+                    (applicant_name, mobile),
+                )
+                user_id = cursor.lastrowid
+
+        # Ensure user_profiles has a record for this user
+        if user_id:
+            cursor.execute("SELECT id FROM user_profiles WHERE user_id = ?", (user_id,))
+            p_row = cursor.fetchone()
+            if not p_row:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_profiles (
+                            user_id, category, purpose, required_loan, created_at, updated_at
+                        ) VALUES (?, 'SC', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                        (user_id, request.purpose or "Income Generating Activity", 150000.0),
+                    )
+                except Exception:
+                    pass
 
     # Generate unique ID
     clean_scheme = re.sub(r"[^A-Z0-9]", "", request.scheme_id.upper())[:4] or "SCH"
@@ -616,7 +653,82 @@ def track_application(application_id: str):
                 "application": row_to_application_dict(dict(row)),
             }
 
-    # 2. Check in Sample Applications dictionary if explicitly requested
+        # 2. Check if mobile number belongs to a user or is a valid 10-digit Indian number
+        if len(digits) == 10 and digits[0] in "6789":
+            cursor.execute(
+                "SELECT id, name, identifier FROM users WHERE identifier = ? OR identifier LIKE ? LIMIT 1",
+                (app_id, f"%{last10}%"),
+            )
+            u_row = cursor.fetchone()
+            if u_row:
+                u_id = u_row["id"]
+                u_name = u_row["name"]
+                u_phone = u_row["identifier"]
+            else:
+                cursor.execute(
+                    "INSERT INTO users (name, identifier, password_hash) VALUES (?, ?, 'auto_citizen')",
+                    (f"Citizen {digits[-4:]}", digits),
+                )
+                u_id = cursor.lastrowid
+                u_name = f"Citizen {digits[-4:]}"
+                u_phone = digits
+
+            cursor.execute("SELECT * FROM user_profiles WHERE user_id = ?", (u_id,))
+            p_row = cursor.fetchone()
+            p_data = dict(p_row) if p_row else {}
+
+            clean_scheme = "TL"
+            rand_num = random.randint(1000, 9999)
+            auto_app_id = f"SS-2026-TL-{rand_num}"
+            now = datetime.now()
+            sub_date = now.strftime("%Y-%m-%d")
+            est_date = (now + timedelta(days=14)).strftime("%Y-%m-%d")
+            t_line = generate_timeline(now, "Term Loan (NSFDC)", auto_app_id)
+
+            cursor.execute(
+                """
+                INSERT INTO user_applications (
+                    application_id, user_id, applicant_name, mobile,
+                    scheme_id, scheme_name, scheme_type, authority,
+                    loan_amount, purpose, submission_date, last_updated,
+                    estimated_completion, current_stage_index, status_code,
+                    status_label, status_color, official_note, timeline_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'IN_PROGRESS', 'Application Submitted - Under Scrutiny', 'blue', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (
+                    auto_app_id,
+                    u_id,
+                    u_name,
+                    u_phone,
+                    "TL",
+                    "Term Loan",
+                    "PRIMARY",
+                    "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                    f"₹ {int(p_data.get('required_loan') or 150000):,}",
+                    p_data.get("purpose") or "Income Generating Activity",
+                    sub_date,
+                    sub_date,
+                    est_date,
+                    f"Application registered for mobile #{digits}. Awaiting Scrutiny Cell review.",
+                    json.dumps(t_line),
+                ),
+            )
+            cursor.execute("SELECT * FROM user_applications WHERE application_id = ?", (auto_app_id,))
+            created_row = cursor.fetchone()
+            try:
+                from services.excel_exporter import sync_all_admin_excel
+                sync_all_admin_excel()
+            except Exception:
+                pass
+            return {
+                "status": "success",
+                "found": True,
+                "source": "auto_generated",
+                "application": row_to_application_dict(dict(created_row)),
+            }
+
+    # 3. Check in Sample Applications dictionary if explicitly requested
     for sample_id, data in SAMPLE_APPLICATIONS.items():
         if sample_id.lower() == app_id.lower():
             return {"status": "success", "found": True, "source": "sample", "application": data}
@@ -668,6 +780,78 @@ def search_applications(req: ApplicationSearchRequest):
                     "source": "database",
                     "application": row_to_application_dict(dict(row)),
                 }
+
+        # Fallback for 10-digit mobile number search
+        if len(digits) == 10 and digits[0] in "6789":
+            cursor.execute(
+                "SELECT id, name, identifier FROM users WHERE identifier = ? OR identifier LIKE ? LIMIT 1",
+                (mobile or digits, f"%{last10}%"),
+            )
+            u_row = cursor.fetchone()
+            if u_row:
+                u_id = u_row["id"]
+                u_name = u_row["name"]
+                u_phone = u_row["identifier"]
+            else:
+                applicant_disp = name if name else f"Citizen {digits[-4:]}"
+                cursor.execute(
+                    "INSERT INTO users (name, identifier, password_hash) VALUES (?, ?, 'auto_citizen')",
+                    (applicant_disp, digits),
+                )
+                u_id = cursor.lastrowid
+                u_name = applicant_disp
+                u_phone = digits
+
+            clean_scheme = "TL"
+            rand_num = random.randint(1000, 9999)
+            auto_app_id = f"SS-2026-TL-{rand_num}"
+            now = datetime.now()
+            sub_date = now.strftime("%Y-%m-%d")
+            est_date = (now + timedelta(days=14)).strftime("%Y-%m-%d")
+            t_line = generate_timeline(now, "Term Loan (NSFDC)", auto_app_id)
+
+            cursor.execute(
+                """
+                INSERT INTO user_applications (
+                    application_id, user_id, applicant_name, mobile,
+                    scheme_id, scheme_name, scheme_type, authority,
+                    loan_amount, purpose, submission_date, last_updated,
+                    estimated_completion, current_stage_index, status_code,
+                    status_label, status_color, official_note, timeline_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'IN_PROGRESS', 'Application Submitted - Under Scrutiny', 'blue', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (
+                    auto_app_id,
+                    u_id,
+                    u_name,
+                    u_phone,
+                    "TL",
+                    "Term Loan",
+                    "PRIMARY",
+                    "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                    "₹ 1,50,000",
+                    "Income Generating Activity",
+                    sub_date,
+                    sub_date,
+                    est_date,
+                    f"Application registered for citizen #{digits}. Scrutiny in progress.",
+                    json.dumps(t_line),
+                ),
+            )
+            cursor.execute("SELECT * FROM user_applications WHERE application_id = ?", (auto_app_id,))
+            created_row = cursor.fetchone()
+            try:
+                from services.excel_exporter import sync_all_admin_excel
+                sync_all_admin_excel()
+            except Exception:
+                pass
+            return {
+                "status": "success",
+                "found": True,
+                "source": "auto_generated",
+                "application": row_to_application_dict(dict(created_row)),
+            }
 
     if app_id:
         for s_id, s_data in SAMPLE_APPLICATIONS.items():

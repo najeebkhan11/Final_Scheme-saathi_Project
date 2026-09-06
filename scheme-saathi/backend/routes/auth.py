@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 
 from database.database import get_db
 from schemas.auth import SignupRequest, LoginRequest, TokenResponse
-from schemas.user import UserProfileRequest, ChangePasswordRequest
+from schemas.user import UserProfileRequest
 from services.auth import (
     hash_password,
     verify_password,
@@ -173,7 +173,6 @@ def me(current_user: Dict[str, Any] = Depends(get_current_user)):
 
 
 @router.post("/profile")
-@router.put("/profile")
 def save_profile(
     profile_data: UserProfileRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -184,41 +183,11 @@ def save_profile(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # If name is provided, update users table
-        new_name = data.get("name")
-        if new_name and new_name.strip():
+        # If name is provided and changed, update users table
+        if data.get("name"):
             cursor.execute(
                 "UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (new_name.strip(), user_id),
-            )
-
-        # If mobile/identifier is provided, validate and update users table
-        new_phone = data.get("identifier")
-        if new_phone and new_phone.strip():
-            cleaned_phone = new_phone.strip()
-            if not INDIAN_PHONE_RE.match(cleaned_phone):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Please enter a valid 10 digit Indian mobile number.",
-                )
-            # Check for conflict with another user
-            cursor.execute(
-                "SELECT id FROM users WHERE lower(identifier) = lower(?) AND id != ?",
-                (cleaned_phone, user_id),
-            )
-            if cursor.fetchone():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="This mobile number is already registered by another account.",
-                )
-            cursor.execute(
-                "UPDATE users SET identifier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (cleaned_phone, user_id),
-            )
-            # Also keep mobile in sync on any existing user_applications
-            cursor.execute(
-                "UPDATE user_applications SET mobile = ?, applicant_name = COALESCE(?, applicant_name), updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
-                (cleaned_phone, new_name.strip() if new_name else None, user_id),
+                (data["name"].strip(), user_id),
             )
 
         cursor.execute("SELECT id FROM user_profiles WHERE user_id = ?", (user_id,))
@@ -294,11 +263,7 @@ def save_profile(
                 ),
             )
 
-        # Fetch fresh updated user row
-        cursor.execute("SELECT id, name, identifier FROM users WHERE id = ?", (user_id,))
-        fresh_user = cursor.fetchone()
-
-    # Automatically sync updated profile to Excel
+    # Automatically sync updated profile to Excel in D:\Project-SIH\Admin_Data
     try:
         from services.excel_exporter import export_profiles_to_excel
         export_profiles_to_excel()
@@ -308,48 +273,6 @@ def save_profile(
     return {
         "status": "success",
         "message": "User profile saved successfully",
-        "user": {
-            "id": fresh_user["id"],
-            "name": fresh_user["name"],
-            "identifier": fresh_user["identifier"],
-        } if fresh_user else current_user,
-    }
-
-
-@router.post("/change-password")
-def change_password(
-    req: ChangePasswordRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    old_pw = req.old_password.strip()
-    new_pw = req.new_password.strip()
-
-    if len(new_pw) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 6 characters.",
-        )
-
-    user_id = current_user["id"]
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
-        user_row = cursor.fetchone()
-        if not user_row or not verify_password(old_pw, user_row["password_hash"]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect.",
-            )
-
-        new_hash = hash_password(new_pw)
-        cursor.execute(
-            "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (new_hash, user_id),
-        )
-
-    return {
-        "status": "success",
-        "message": "Password updated successfully.",
     }
 
 
