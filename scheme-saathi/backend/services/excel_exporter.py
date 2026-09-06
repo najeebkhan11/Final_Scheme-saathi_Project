@@ -5,8 +5,46 @@ from datetime import datetime
 from pathlib import Path
 import pandas as pd
 
-ADMIN_DATA_DIR = Path(r"D:\Project-SIH\Admin_Data")
-DB_PATH = Path(r"D:\Project-SIH\scheme-saathi\backend\scheme_saathi.db")
+from database.database import get_connection, DATABASE_PATH
+
+
+def _resolve_admin_data_dir() -> Path:
+    env_dir = os.environ.get("ADMIN_DATA_DIR")
+    if env_dir:
+        p = Path(env_dir)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        except Exception:
+            pass
+
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("LAMBDA_TASK_ROOT")
+    )
+    if is_serverless:
+        p = Path("/tmp/Admin_Data")
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    local_p = Path(r"D:\Project-SIH\Admin_Data")
+    try:
+        local_p.mkdir(parents=True, exist_ok=True)
+        return local_p
+    except Exception:
+        fallback = Path(__file__).resolve().parent.parent / "Admin_Data"
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+            return fallback
+        except Exception:
+            p = Path("/tmp/Admin_Data")
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+
+
+ADMIN_DATA_DIR = _resolve_admin_data_dir()
+DB_PATH = DATABASE_PATH
 
 STAGE_NAMES = {
     0: "1. Application Submitted",
@@ -17,14 +55,17 @@ STAGE_NAMES = {
 }
 
 def ensure_admin_dir():
-    ADMIN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        ADMIN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 def export_applications_to_excel():
     ensure_admin_dir()
-    if not DB_PATH.exists():
-        return {"status": "error", "message": "Database not found"}
-
-    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn = get_connection()
+    except Exception as e:
+        return {"status": "error", "message": f"Database connection error: {e}"}
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -94,10 +135,10 @@ def export_applications_to_excel():
 
 def export_profiles_to_excel():
     ensure_admin_dir()
-    if not DB_PATH.exists():
-        return {"status": "error", "message": "Database not found"}
-
-    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn = get_connection()
+    except Exception as e:
+        return {"status": "error", "message": f"Database connection error: {e}"}
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 

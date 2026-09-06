@@ -1,13 +1,97 @@
+import os
+import shutil
 import sqlite3
+import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATABASE_PATH = BASE_DIR / "scheme_saathi.db"
+
+
+def _resolve_database_path() -> Path:
+    # 1. Respect explicit environment variable if set
+    env_path = os.environ.get("DATABASE_PATH")
+    if env_path:
+        p = Path(env_path)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p
+        except Exception:
+            pass
+
+    # 2. Serverless detection (Vercel, AWS Lambda)
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("LAMBDA_TASK_ROOT")
+        or os.environ.get("VERCEL_ENV")
+    )
+
+    if is_serverless:
+        temp_dir = Path(tempfile.gettempdir())
+        tmp_db = temp_dir / "scheme_saathi.db"
+        try:
+            tmp_db.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        bundled_db = BASE_DIR / "scheme_saathi.db"
+        if not tmp_db.exists() and bundled_db.exists():
+            try:
+                shutil.copyfile(bundled_db, tmp_db)
+            except Exception:
+                pass
+        return tmp_db
+
+    # 3. Local environment
+    local_db = BASE_DIR / "scheme_saathi.db"
+    try:
+        local_db.parent.mkdir(parents=True, exist_ok=True)
+        # Test if directory is writable
+        test_file = local_db.parent / ".perm_test"
+        try:
+            test_file.touch()
+            test_file.unlink(missing_ok=True)
+            return local_db
+        except (OSError, PermissionError):
+            temp_dir = Path(tempfile.gettempdir())
+            tmp_db = temp_dir / "scheme_saathi.db"
+            try:
+                tmp_db.parent.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            if not tmp_db.exists() and local_db.exists():
+                try:
+                    shutil.copyfile(local_db, tmp_db)
+                except Exception:
+                    pass
+            return tmp_db
+    except Exception:
+        temp_dir = Path(tempfile.gettempdir())
+        return temp_dir / "scheme_saathi.db"
+
+
+DATABASE_PATH = _resolve_database_path()
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DATABASE_PATH), check_same_thread=False)
+    global DATABASE_PATH
+    try:
+        conn = sqlite3.connect(str(DATABASE_PATH), check_same_thread=False)
+    except sqlite3.OperationalError:
+        # If opening fails due to read-only filesystem on Vercel/serverless, fallback to temp dir
+        fallback_path = Path(tempfile.gettempdir()) / "scheme_saathi.db"
+        if fallback_path != DATABASE_PATH:
+            bundled = BASE_DIR / "scheme_saathi.db"
+            if not fallback_path.exists() and bundled.exists():
+                try:
+                    shutil.copyfile(bundled, fallback_path)
+                except Exception:
+                    pass
+            DATABASE_PATH = fallback_path
+            conn = sqlite3.connect(str(DATABASE_PATH), check_same_thread=False)
+        else:
+            raise
+
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
