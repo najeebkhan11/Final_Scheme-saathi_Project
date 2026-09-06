@@ -28,6 +28,7 @@ import {
   Compass,
   Navigation,
   TrendingUp,
+  Search,
 } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { apiCache } from "../services/apiCache";

@@ -16,6 +16,7 @@ import {
   X,
   Phone,
   Send,
+  Loader2,
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
 import { apiCache } from "../services/apiCache";
@@ -73,86 +74,6 @@ export default function SchemeFinder({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-
-  // Application submission states
-  const [applyModalOpen, setApplyModalOpen] = useState(false);
-  const [selectedSchemeToApply, setSelectedSchemeToApply] = useState(null);
-  const [applicantNameInput, setApplicantNameInput] = useState("");
-  const [mobileInput, setMobileInput] = useState("");
-  const [isApplying, setIsApplying] = useState(false);
-  const [applySuccessData, setApplySuccessData] = useState(null);
-  const [applyError, setApplyError] = useState("");
-
-  const handleInitiateApply = (scheme) => {
-    const target = scheme || (results?.schemes || []).find((s) => s.is_eligible) || results?.schemes?.[0];
-    if (!target) return;
-    setSelectedSchemeToApply(target);
-    setApplicantNameInput(currentUser?.name || formData.fullName || "");
-    setMobileInput(currentUser?.identifier || "");
-    setApplyError("");
-    setApplyModalOpen(true);
-  };
-
-  const handleConfirmSubmitApplication = async () => {
-    const phoneClean = mobileInput.replace(/\D/g, "");
-    if (!phoneClean || phoneClean.length !== 10) {
-      setApplyError("Please enter a valid 10-digit Indian mobile number to register and track your application.");
-      return;
-    }
-    const nameClean = applicantNameInput.trim() || formData.fullName || currentUser?.name || "Applicant";
-
-    setIsApplying(true);
-    setApplyError("");
-
-    const token = localStorage.getItem("scheme_saathi_token");
-    const headers = { "Content-Type": "application/json" };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    const payload = {
-      applicant_name: nameClean,
-      mobile: phoneClean,
-      scheme_id: selectedSchemeToApply?.scheme_id || "TL",
-      scheme_name: selectedSchemeToApply?.scheme_name || "Term Loan",
-      loan_amount: formatCurrency(formData.requiredLoan || 150000),
-      purpose: formatValue(formData.purpose || "new_business"),
-      authority: "National Scheduled Castes Finance and Development Corporation (NSFDC)",
-    };
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/applications/submit`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const app = data.application || data;
-        setApplySuccessData(app);
-        setApplyModalOpen(false);
-
-        // Cache in localStorage for client-side instant tracking fallback
-        try {
-          const saved = JSON.parse(localStorage.getItem("scheme_saathi_applications") || "{}");
-          saved[app.application_id] = app;
-          if (app.mobile) saved[app.mobile] = app;
-          localStorage.setItem("scheme_saathi_applications", JSON.stringify(saved));
-          localStorage.setItem("scheme_saathi_recent_track", app.application_id);
-        } catch {
-          // ignore
-        }
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setApplyError(err.detail || "Failed to submit application. Please check details.");
-      }
-    } catch {
-      setApplyError("Could not reach backend server to submit application.");
-    } finally {
-      setIsApplying(false);
-    }
-  };
 
   // Check if all required entries for the given step are completed by the user
   const isStepComplete = (stepNumber) => {
@@ -497,6 +418,8 @@ export default function SchemeFinder({
       <SchemeResults
         results={results}
         formData={formData}
+        currentUser={currentUser}
+        onNavigate={onNavigate}
         onBack={() => {
           setResults(null);
           setStep(5);
@@ -1358,7 +1281,7 @@ function StepFive({ formData }) {
   );
 }
 
-function SchemeResults({ results, formData, onBack, onHome }) {
+function SchemeResults({ results, formData, currentUser, onNavigate, onBack, onHome }) {
   const primaryEligible = Array.isArray(results?.primary?.eligible)
     ? results.primary.eligible
     : [];
@@ -1374,6 +1297,86 @@ function SchemeResults({ results, formData, onBack, onHome }) {
   const primaryMatchCount = primaryEligible.length;
   const secondaryMatchCount = secondaryEligible.length;
   const topScheme = primaryEligible[0] || null;
+
+  // Application submission states
+  const [applyModalOpen, setApplyModalOpen] = useState(false);
+  const [selectedSchemeToApply, setSelectedSchemeToApply] = useState(null);
+  const [applicantNameInput, setApplicantNameInput] = useState("");
+  const [mobileInput, setMobileInput] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+  const [applySuccessData, setApplySuccessData] = useState(null);
+  const [applyError, setApplyError] = useState("");
+
+  const handleInitiateApply = (scheme) => {
+    const target = scheme || topScheme || (results?.schemes || []).find((s) => s.is_eligible) || results?.schemes?.[0];
+    if (!target) return;
+    setSelectedSchemeToApply(target);
+    setApplicantNameInput(currentUser?.name || formData.fullName || "");
+    setMobileInput(currentUser?.identifier || "");
+    setApplyError("");
+    setApplyModalOpen(true);
+  };
+
+  const handleConfirmSubmitApplication = async () => {
+    const phoneClean = mobileInput.replace(/\D/g, "");
+    if (!phoneClean || phoneClean.length !== 10) {
+      setApplyError("Please enter a valid 10-digit Indian mobile number to register and track your application.");
+      return;
+    }
+    const nameClean = applicantNameInput.trim() || formData.fullName || currentUser?.name || "Applicant";
+
+    setIsApplying(true);
+    setApplyError("");
+
+    const token = localStorage.getItem("scheme_saathi_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const payload = {
+      applicant_name: nameClean,
+      mobile: phoneClean,
+      scheme_id: selectedSchemeToApply?.scheme_id || "TL",
+      scheme_name: selectedSchemeToApply?.scheme_name || "Term Loan",
+      loan_amount: formatCurrency(formData.requiredLoan || 150000),
+      purpose: formatValue(formData.purpose || "new_business"),
+      authority: "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+    };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/applications/submit`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const app = data.application || data;
+        setApplySuccessData(app);
+        setApplyModalOpen(false);
+
+        // Cache in localStorage for client-side instant tracking fallback
+        try {
+          const saved = JSON.parse(localStorage.getItem("scheme_saathi_applications") || "{}");
+          saved[app.application_id] = app;
+          if (app.mobile) saved[app.mobile] = app;
+          localStorage.setItem("scheme_saathi_applications", JSON.stringify(saved));
+          localStorage.setItem("scheme_saathi_recent_track", app.application_id);
+        } catch {
+          // ignore
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setApplyError(err.detail || "Failed to submit application. Please check details.");
+      }
+    } catch {
+      setApplyError("Could not reach backend server to submit application.");
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   const backendMatchScore =
     results?.match_score ??
