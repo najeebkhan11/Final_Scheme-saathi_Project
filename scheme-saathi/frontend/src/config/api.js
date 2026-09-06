@@ -8,15 +8,20 @@ const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_URL.replace(/\/$/, "");
   }
 
-  // Match hostname to prevent cross-origin or mixed localhost/127.0.0.1 issues
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
+    // Local Vite dev server (e.g. port 5173 or 3000) connecting to backend on 8000
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return `http://${hostname}:8000`;
+      if (window.location.port && window.location.port !== "8000" && window.location.port !== "80") {
+        return `http://${hostname}:8000`;
+      }
+      return "";
     }
+    // Production deployments (Vercel, custom domain, Docker) - use relative origin
+    return "";
   }
 
-  return "http://localhost:8000";
+  return "";
 };
 
 export const API_BASE_URL = getApiBaseUrl();

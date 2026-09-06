@@ -1,0 +1,29 @@
+﻿{
+  "services": {
+    "frontend": {
+      "root": "scheme-saathi/frontend",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "scheme-saathi/backend",
+      "framework": "fastapi",
+      "entrypoint": "main.py"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "frontend"
+      }
+    }
+  ]
+}
