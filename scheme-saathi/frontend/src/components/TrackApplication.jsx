@@ -141,7 +141,7 @@ export default function TrackApplication({
         // ignore
       }
       setSearchError(
-        "Unable to connect to the backend server. Please verify the backend is running on port 8000."
+        "Unable to connect to the server. Please check your internet connection and try again."
       );
       setStatus(null);
     } finally {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ShieldCheck,
   FileSpreadsheet,
@@ -49,6 +49,7 @@ export default function AdminPortal({ onBack, onNavigate }) {
   const [authorRemarks, setAuthorRemarks] = useState("");
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [excelFolder, setExcelFolder] = useState("");
 
   const fetchApplications = async () => {
     try {
@@ -57,6 +58,7 @@ export default function AdminPortal({ onBack, onNavigate }) {
       if (res.ok) {
         const data = await res.json();
         setApplications(data.applications || []);
+        if (data.excel_folder) setExcelFolder(data.excel_folder);
       }
     } catch {
       // ignore
@@ -155,8 +157,10 @@ export default function AdminPortal({ onBack, onNavigate }) {
         method: "POST",
       });
       if (res.ok) {
-        setSyncMessage("Excel file automatically updated in D:\\Project-SIH\\Admin_Data\\User_Applications.xlsx");
-        setTimeout(() => setSyncMessage(""), 5000);
+        const data = await res.json();
+        const folder = data?.applications?.excel_path || excelFolder || "Admin_Data folder";
+        setSyncMessage(`Excel files updated successfully in: ${folder}`);
+        setTimeout(() => setSyncMessage(""), 6000);
       }
     } catch {
       // ignore
@@ -227,10 +231,13 @@ export default function AdminPortal({ onBack, onNavigate }) {
                 </span>
               </h3>
               <p className="mt-1 font-mono text-xs text-[#35536e]">
-                📁 File Location: <strong className="text-[#145c91]">D:\Project-SIH\Admin_Data\User_Applications.xlsx</strong>
+                📁 File Location:{" "}
+                <strong className="text-[#145c91]">
+                  {excelFolder ? `${excelFolder}` : "Admin_Data folder (auto-detected on server)"}
+                </strong>
               </p>
               <p className="mt-0.5 text-[11px] text-[#6b8296]">
-                Every time a user fills details or an author advances a stage, this Excel sheet is updated automatically on your computer.
+                Every time a user fills details or an author advances a stage, this Excel sheet is updated automatically.
               </p>
             </div>
           </div>
@@ -568,7 +575,10 @@ export default function AdminPortal({ onBack, onNavigate }) {
               Registered Citizens & Scheme Finder Profiles ({users.length})
             </h3>
             <p className="mt-1 text-xs text-[#62778a]">
-              Also saved in Excel at: <strong className="text-[#145c91]">D:\Project-SIH\Admin_Data\User_Profiles.xlsx</strong>
+              Also saved in Excel at:{" "}
+              <strong className="text-[#145c91]">
+                {excelFolder ? excelFolder.replace("User_Applications", "User_Profiles") : "Admin_Data/User_Profiles.xlsx"}
+              </strong>
             </p>
 
             <div className="mt-5 overflow-x-auto">

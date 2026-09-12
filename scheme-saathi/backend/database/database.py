@@ -245,8 +245,124 @@ def init_db():
         if count == 0:
             try:
                 import json
-                from routes.applications import SAMPLE_APPLICATIONS
-                for app_id, data in SAMPLE_APPLICATIONS.items():
+                # Demo / showcase applications seeded on first boot.
+                # AI-generated dynamic timelines are added via generate_timeline at submit time;
+                # these use hand-crafted timelines for realistic demo display.
+                _SEED_APPLICATIONS = [
+                    {
+                        "application_id": "SS-2026-MFS-8492",
+                        "applicant_name": "Ramesh Chandra",
+                        "mobile": "XXXXXX4219",
+                        "mobile_masked": "XXXXXX4219",
+                        "scheme_id": "MFS",
+                        "scheme_name": "Micro Finance Scheme (MFS)",
+                        "scheme_type": "PRIMARY",
+                        "authority": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                        "loan_amount": "Rs 1,40,000",
+                        "purpose": "Small Retail Kirana Store Expansion",
+                        "submission_date": "2026-08-18",
+                        "last_updated": "2026-09-02",
+                        "estimated_completion": "2026-09-15",
+                        "current_stage_index": 1,
+                        "status_code": "IN_PROGRESS",
+                        "status_label": "Under Document Verification",
+                        "status_color": "blue",
+                        "channel_partner": {
+                            "name": "State Scheduled Castes Development Corporation (SCDC)",
+                            "district": "Lucknow",
+                            "state": "Uttar Pradesh",
+                            "office_address": "Vikas Bhawan, 2nd Floor, Civil Lines, Lucknow - 226001",
+                            "officer_in_charge": "Shri S. K. Verma (District Manager)",
+                            "contact_phone": "+91 522-2239871",
+                            "helpline": "1800-180-5566",
+                        },
+                        "official_note": "Your digital KYC and Caste certificate have been verified. Field verification by the district officer is scheduled between 05 Sep and 08 Sep 2026.",
+                        "action_required": None,
+                        "timeline": [
+                            {"stage_index": 0, "title": "Application Submitted", "subtitle": "Online Submission via Scheme Saathi", "date": "18 Aug 2026, 11:30 AM", "status": "COMPLETED", "remarks": "Application form and primary documents successfully registered under Ref #SS-2026-MFS-8492."},
+                            {"stage_index": 1, "title": "Document Verification", "subtitle": "District Scrutiny Cell", "date": "25 Aug 2026, 04:15 PM", "status": "IN_PROGRESS", "remarks": "Aadhaar and Caste certificates validated via DigiLocker. Physical scrutiny of premises pending."},
+                            {"stage_index": 2, "title": "SCA / Channel Partner Review", "subtitle": "State Channelizing Agency Committee", "date": "Expected: 08 Sep 2026", "status": "PENDING", "remarks": "Quotas and fund allocation appraisal by State Channelizing Agency."},
+                            {"stage_index": 3, "title": "Bank Credit Appraisal & Sanction", "subtitle": "Lending Branch Partner", "date": "Expected: 12 Sep 2026", "status": "PENDING", "remarks": "Credit agreement execution and sanction letter issuance."},
+                            {"stage_index": 4, "title": "Disbursement & DBT Credit", "subtitle": "Direct Benefit Transfer", "date": "Expected: 15 Sep 2026", "status": "PENDING", "remarks": "Loan credit directly to Aadhaar-linked bank account."},
+                        ],
+                    },
+                    {
+                        "application_id": "SS-2026-ELS-3104",
+                        "applicant_name": "Pooja Kumari",
+                        "mobile": "XXXXXX8832",
+                        "mobile_masked": "XXXXXX8832",
+                        "scheme_id": "ELS",
+                        "scheme_name": "Educational Loan Scheme (ELS)",
+                        "scheme_type": "PRIMARY",
+                        "authority": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                        "loan_amount": "Rs 7,50,000",
+                        "purpose": "B.Tech Computer Science & Engineering (4-Year Degree)",
+                        "submission_date": "2026-07-10",
+                        "last_updated": "2026-09-01",
+                        "estimated_completion": "2026-09-08",
+                        "current_stage_index": 3,
+                        "status_code": "APPROVED",
+                        "status_label": "Loan Sanctioned - Ready for Disbursement",
+                        "status_color": "emerald",
+                        "channel_partner": {
+                            "name": "Punjab National Bank - Special MSME/Govt Scheme Branch",
+                            "district": "Patna",
+                            "state": "Bihar",
+                            "office_address": "PNB House, Exhibition Road, Patna - 800001",
+                            "officer_in_charge": "Ms. Sunita Roy (Chief Credit Officer)",
+                            "contact_phone": "+91 612-2589012",
+                            "helpline": "1800-180-2222",
+                        },
+                        "official_note": "Sanction letter #ELS-2026-9812 has been issued. Subsidized interest rate at 4.0% p.a. approved for the study tenure.",
+                        "action_required": "Please visit the branch by 06 Sep 2026 with your admission letter original and bank passbook to sign the subsidy agreement.",
+                        "timeline": [
+                            {"stage_index": 0, "title": "Application Submitted", "subtitle": "Online Submission via Scheme Saathi", "date": "10 Jul 2026, 02:40 PM", "status": "COMPLETED", "remarks": "Educational loan request submitted with Institute Bonafide Certificate."},
+                            {"stage_index": 1, "title": "Document Verification", "subtitle": "State Nodal Cell", "date": "24 Jul 2026, 10:00 AM", "status": "COMPLETED", "remarks": "Fee structure, marksheet, and income certificate verified and approved."},
+                            {"stage_index": 2, "title": "SCA / Channel Partner Review", "subtitle": "Bihar State SC/ST Finance Development Corp", "date": "14 Aug 2026, 03:20 PM", "status": "COMPLETED", "remarks": "Candidate recommended for full tuition & hostel fee loan subsidy."},
+                            {"stage_index": 3, "title": "Bank Credit Appraisal & Sanction", "subtitle": "PNB Exhibition Road Branch", "date": "01 Sep 2026, 11:15 AM", "status": "COMPLETED", "remarks": "Sanction Order #ELS-2026-9812 generated. 1st installment ready for transfer to college."},
+                            {"stage_index": 4, "title": "Disbursement & DBT Credit", "subtitle": "Direct College Account Transfer", "date": "Scheduled: 08 Sep 2026", "status": "IN_PROGRESS", "remarks": "Awaiting beneficiary agreement signature."},
+                        ],
+                    },
+                    {
+                        "application_id": "SS-2026-TL-5521",
+                        "applicant_name": "Manoj Meghwal",
+                        "mobile": "XXXXXX1904",
+                        "mobile_masked": "XXXXXX1904",
+                        "scheme_id": "TERM_LOAN",
+                        "scheme_name": "Term Loan (TL)",
+                        "scheme_type": "PRIMARY",
+                        "authority": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+                        "loan_amount": "Rs 12,00,000",
+                        "purpose": "Food Processing & Packaging Unit",
+                        "submission_date": "2026-08-05",
+                        "last_updated": "2026-09-03",
+                        "estimated_completion": "2026-09-22",
+                        "current_stage_index": 1,
+                        "status_code": "ACTION_REQUIRED",
+                        "status_label": "Action Required - Document Clarification",
+                        "status_color": "amber",
+                        "channel_partner": {
+                            "name": "Rajasthan SC/ST Finance and Development Co-op Corp (Anusuchit Jati Nigam)",
+                            "district": "Jaipur",
+                            "state": "Rajasthan",
+                            "office_address": "Nehru Sahkar Bhawan, 4th Floor, Tonk Road, Jaipur - 302015",
+                            "officer_in_charge": "Dr. R. P. Sharma (District Project Officer)",
+                            "contact_phone": "+91 141-2740921",
+                            "helpline": "1800-180-6127",
+                        },
+                        "official_note": "Scrutiny committee found that the annual income certificate submitted was issued in 2024. As per NSFDC policy, income certificate must be valid within the past 12 months.",
+                        "action_required": "Please provide an updated Family Income Certificate for FY 2026-27 issued by Tehsildar. The current document uploaded has expired.",
+                        "timeline": [
+                            {"stage_index": 0, "title": "Application Submitted", "subtitle": "Online Submission via Scheme Saathi", "date": "05 Aug 2026, 09:12 AM", "status": "COMPLETED", "remarks": "Project report and application for Rs 12 Lakhs submitted."},
+                            {"stage_index": 1, "title": "Document Verification", "subtitle": "Jaipur District Scrutiny Committee", "date": "03 Sep 2026, 02:45 PM", "status": "ACTION_REQUIRED", "remarks": "Deficiency raised: Valid income proof required within 7 days."},
+                            {"stage_index": 2, "title": "SCA / Channel Partner Review", "subtitle": "State Appraisal Board", "date": "On Hold", "status": "PENDING", "remarks": "Will proceed immediately upon resolution of document query."},
+                            {"stage_index": 3, "title": "Bank Credit Appraisal & Sanction", "subtitle": "Lead District Bank", "date": "Pending", "status": "PENDING", "remarks": "Evaluation of machinery quotation and margin money."},
+                            {"stage_index": 4, "title": "Disbursement & DBT Credit", "subtitle": "Direct Supplier & Beneficiary Credit", "date": "Pending", "status": "PENDING", "remarks": "Post-sanction disbursement."},
+                        ],
+                    },
+                ]
+
+                for data in _SEED_APPLICATIONS:
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO user_applications (
@@ -260,7 +376,7 @@ def init_db():
                         (
                             data["application_id"],
                             data["applicant_name"],
-                            data.get("mobile", data.get("mobile_masked", "")),
+                            data.get("mobile", ""),
                             data.get("mobile_masked", ""),
                             data.get("scheme_id", "MFS"),
                             data.get("scheme_name", ""),
@@ -283,4 +399,6 @@ def init_db():
                     )
             except Exception as e:
                 pass
+
+
 

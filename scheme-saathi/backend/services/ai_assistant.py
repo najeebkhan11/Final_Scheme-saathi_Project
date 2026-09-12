@@ -34,7 +34,7 @@ def _get_api_key() -> str:
 
 def _get_model_name() -> str:
     """Retrieve Gemini model name dynamically from environment."""
-    return os.environ.get("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-2.5-flash"
+    return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
 
 _GENAI_CLIENT = None
