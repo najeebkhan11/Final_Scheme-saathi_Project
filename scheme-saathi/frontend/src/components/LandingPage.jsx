@@ -297,6 +297,32 @@ export default function LandingPage({
           </div>
         </section>
 
+        {/* Institutional Scheme Statistics Bar */}
+        <section className="bg-gradient-to-r from-[#145c91] to-[#0f446c] text-white px-6 py-8 shadow-inner">
+          <div className="mx-auto max-w-[1320px] grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div className="border-r border-white/15 last:border-none pr-4">
+              <p className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">10</p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-[#b8d8f0] font-semibold">{t("Verified Schemes")}</p>
+              <p className="text-[10px] text-[#86bce3] mt-0.5">{t("5 Primary + 5 Secondary")}</p>
+            </div>
+            <div className="border-r border-white/15 last:border-none pr-4">
+              <p className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">4.0% – 6.5%</p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-[#b8d8f0] font-semibold">{t("Subsidized Interest")}</p>
+              <p className="text-[10px] text-[#86bce3] mt-0.5">{t("Government Concession")}</p>
+            </div>
+            <div className="border-r border-white/15 last:border-none pr-4">
+              <p className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">Up to ₹50L</p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-[#b8d8f0] font-semibold">{t("Project Coverage")}</p>
+              <p className="text-[10px] text-[#86bce3] mt-0.5">{t("Flexible Tenures")}</p>
+            </div>
+            <div>
+              <p className="font-serif text-3xl sm:text-4xl font-bold tracking-tight">100% DBT</p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-[#b8d8f0] font-semibold">{t("Direct Bank Transfer")}</p>
+              <p className="text-[10px] text-[#86bce3] mt-0.5">{t("Aadhaar-Linked Accounts")}</p>
+            </div>
+          </div>
+        </section>
+
         <section className="bg-white px-6 py-20 lg:py-24">
           <div className="mx-auto max-w-[1300px]">
             <div className="text-center">

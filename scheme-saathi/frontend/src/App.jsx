@@ -95,11 +95,7 @@ function AppContent() {
   }, []);
 
   const openSchemeFinder = () => {
-    if (isLoggedIn) {
-      setView("finder");
-    } else {
-      setView("login");
-    }
+    setView("finder");
   };
 
   const handleLogin = (user) => {
@@ -130,7 +126,10 @@ function AppContent() {
       {showGlobalNavbar && (
         <AppNavbar
           activeView={view}
-          onNavigate={(page) => setView(page)}
+          onNavigate={(page) => {
+            if (page !== "ai_assistant") setAiInitialQuery("");
+            setView(page);
+          }}
           isLoggedIn={isLoggedIn}
           currentUser={currentUser}
           onLogin={() => setView("login")}
@@ -138,165 +137,202 @@ function AppContent() {
         />
       )}
 
-      <div className="flex-1">
+      <div className="flex-1 pb-16 lg:pb-0">
         <Suspense fallback={<PageLoader />}>
-          {view === "home" && (
-            <LandingPage
-              hideNavbar={true}
-              onFindScheme={openSchemeFinder}
-              onExplore={() => setView("explore")}
-              onLogin={() => setView("login")}
-              onNavigate={(page) => setView(page)}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onLogout={handleLogout}
-              lastSchemeResults={lastSchemeResults}
-              lastSchemeFormData={lastSchemeFormData}
-            />
-          )}
+          <div key={view} className="animate-in fade-in duration-150">
+            {view === "home" && (
+              <LandingPage
+                hideNavbar={true}
+                onFindScheme={openSchemeFinder}
+                onExplore={() => setView("explore")}
+                onLogin={() => setView("login")}
+                onNavigate={(page) => setView(page)}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onLogout={handleLogout}
+                lastSchemeResults={lastSchemeResults}
+                lastSchemeFormData={lastSchemeFormData}
+              />
+            )}
 
-          {view === "explore" && (
-            <ExploreSchemes
-              onBack={() => setView("home")}
-              onLogin={() => setView("login")}
-              onLocatePartner={(schemeCode) => {
-                setSelectedSchemeForPartner(schemeCode);
-                setView("partner_locator");
-              }}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onLogout={handleLogout}
-            />
-          )}
+            {view === "explore" && (
+              <ExploreSchemes
+                onBack={() => setView("home")}
+                onLogin={() => setView("login")}
+                onLocatePartner={(schemeCode) => {
+                  setSelectedSchemeForPartner(schemeCode);
+                  setView("partner_locator");
+                }}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onLogout={handleLogout}
+                onNavigate={(page) => setView(page)}
+              />
+            )}
 
-          {view === "login" && (
-            <AuthPage
-              mode="login"
-              onBack={() => setView("home")}
-              onLogin={handleLogin}
-              onSignup={() => setView("signup")}
-            />
-          )}
+            {view === "login" && (
+              <AuthPage
+                mode="login"
+                onBack={() => setView("home")}
+                onLogin={handleLogin}
+                onSignup={() => setView("signup")}
+              />
+            )}
 
-          {view === "signup" && (
-            <AuthPage
-              mode="signup"
-              onBack={() => setView("home")}
-              onLogin={() => setView("login")}
-              onSignupSuccess={handleLogin}
-            />
-          )}
+            {view === "signup" && (
+              <AuthPage
+                mode="signup"
+                onBack={() => setView("home")}
+                onLogin={() => setView("login")}
+                onSignupSuccess={handleLogin}
+              />
+            )}
 
-          {view === "finder" && (
-            <SchemeFinder
-              onBack={() => setView("home")}
-              onNavigate={(page) => setView(page)}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onResultsReady={(results, formData) => {
-                setLastSchemeResults(results);
-                setLastSchemeFormData(formData);
-                apiCache.saveRecommendations(results, formData);
-              }}
-            />
-          )}
+            {view === "finder" && (
+              <SchemeFinder
+                onBack={() => setView("home")}
+                onNavigate={(page) => setView(page)}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onResultsReady={(results, formData) => {
+                  setLastSchemeResults(results);
+                  setLastSchemeFormData(formData);
+                  apiCache.saveRecommendations(results, formData);
+                }}
+              />
+            )}
 
-          {view === "emi_calculator" && (
-            <EMICalculator onBack={() => setView("home")} />
-          )}
+            {view === "emi_calculator" && (
+              <EMICalculator onBack={() => setView("home")} />
+            )}
 
-          {view === "partner_locator" && (
-            <PartnerLocator
-              hideNavbar={true}
-              onBack={() => setView("home")}
-              onNavigate={(page) => setView(page)}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onLogin={() => setView("login")}
-              onLogout={handleLogout}
-              initialState=""
-              initialDistrict=""
-              initialSchemeId={selectedSchemeForPartner || ""}
-            />
-          )}
+            {view === "partner_locator" && (
+              <PartnerLocator
+                hideNavbar={true}
+                onBack={() => setView("home")}
+                onNavigate={(page) => setView(page)}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onLogin={() => setView("login")}
+                onLogout={handleLogout}
+                initialState=""
+                initialDistrict=""
+                initialSchemeId={selectedSchemeForPartner || ""}
+              />
+            )}
 
-          {view === "ai_assistant" && (
-            <AIAssistant
-              onBack={() => {
-                setAiInitialQuery("");
-                setView("home");
-              }}
-              onNavigate={(page) => setView(page)}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              lastSchemeResults={lastSchemeResults}
-              lastSchemeFormData={lastSchemeFormData}
-              initialQuery={aiInitialQuery}
-            />
-          )}
+            {view === "ai_assistant" && (
+              <AIAssistant
+                onBack={() => {
+                  setAiInitialQuery("");
+                  setView("home");
+                }}
+                onNavigate={(page) => setView(page)}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                lastSchemeResults={lastSchemeResults}
+                lastSchemeFormData={lastSchemeFormData}
+                initialQuery={aiInitialQuery}
+              />
+            )}
 
-          {view === "documents" && (
-            <DocumentsPage
-              onBack={() => setView("home")}
-              onFindScheme={openSchemeFinder}
-              lastSchemeResults={lastSchemeResults}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onLogin={() => setView("login")}
-              onLogout={handleLogout}
-              onNavigate={(page, query = "") => {
-                if (query) setAiInitialQuery(query);
-                setView(page);
-              }}
-            />
-          )}
+            {view === "documents" && (
+              <DocumentsPage
+                onBack={() => setView("home")}
+                onFindScheme={openSchemeFinder}
+                lastSchemeResults={lastSchemeResults}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onLogin={() => setView("login")}
+                onLogout={handleLogout}
+                onNavigate={(page, query = "") => {
+                  if (query) setAiInitialQuery(query);
+                  setView(page);
+                }}
+              />
+            )}
 
-          {view === "track_application" && (
-            <TrackApplication
-              onBack={() => setView("home")}
-              initialApplicationId={selectedTrackAppId}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onNavigate={(page, query = "") => {
-                if (query) setAiInitialQuery(query);
-                setView(page);
-              }}
-            />
-          )}
+            {view === "track_application" && (
+              <TrackApplication
+                onBack={() => setView("home")}
+                initialApplicationId={selectedTrackAppId}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onNavigate={(page, query = "") => {
+                  if (query) setAiInitialQuery(query);
+                  setView(page);
+                }}
+              />
+            )}
 
-          {view === "admin_portal" && (
-            <AdminPortal
-              onBack={() => setView("home")}
-              onNavigate={(page) => setView(page)}
-            />
-          )}
+            {view === "admin_portal" && (
+              <AdminPortal
+                onBack={() => setView("home")}
+                onNavigate={(page) => setView(page)}
+              />
+            )}
 
-          {view === "recommendations" && (
-            <RecommendationsPage
-              onBack={() => setView("home")}
-              onFindScheme={openSchemeFinder}
-              results={lastSchemeResults}
-              formData={lastSchemeFormData}
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              onNavigate={(page, appId = "") => {
-                if (appId && page === "track_application") {
-                  setSelectedTrackAppId(appId);
-                }
-                setView(page);
-              }}
-              onOpenAI={() => setView("ai_assistant")}
-              onOpenCalculator={() => setView("emi_calculator")}
-              onOpenPartner={() => setView("partner_locator")}
-              onSetResults={(newResults, newFormData) => {
-                setLastSchemeResults(newResults);
-                setLastSchemeFormData(newFormData);
-                apiCache.saveRecommendations(newResults, newFormData);
-              }}
-            />
-          )}
+            {view === "recommendations" && (
+              <RecommendationsPage
+                onBack={() => setView("home")}
+                onFindScheme={openSchemeFinder}
+                results={lastSchemeResults}
+                formData={lastSchemeFormData}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+                onNavigate={(page, appId = "") => {
+                  if (appId && page === "track_application") {
+                    setSelectedTrackAppId(appId);
+                  }
+                  setView(page);
+                }}
+                onOpenAI={() => setView("ai_assistant")}
+                onOpenCalculator={() => setView("emi_calculator")}
+                onOpenPartner={() => setView("partner_locator")}
+                onSetResults={(newResults, newFormData) => {
+                  setLastSchemeResults(newResults);
+                  setLastSchemeFormData(newFormData);
+                  apiCache.saveRecommendations(newResults, newFormData);
+                }}
+              />
+            )}
+          </div>
         </Suspense>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#dce4ec] bg-white/95 backdrop-blur-sm px-1 pb-safe lg:hidden">
+        <div className="flex items-center justify-around">
+          {[
+            { id: "home", label: "Home", icon: "🏠" },
+            { id: "explore", label: "Schemes", icon: "📋" },
+            { id: "finder", label: "Find", icon: "🔍" },
+            { id: "track_application", label: "Track", icon: "📍" },
+            { id: "ai_assistant", label: "AI Help", icon: "🤖" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                if (item.id !== "ai_assistant") setAiInitialQuery("");
+                setView(item.id);
+              }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-2 text-[10px] font-semibold transition ${
+                view === item.id
+                  ? "text-[#145c91]"
+                  : "text-[#8096aa]"
+              }`}
+            >
+              <span className={`text-[19px] leading-none transition ${
+                view === item.id ? "scale-110" : ""
+              }`}>{item.icon}</span>
+              <span>{item.label}</span>
+              {view === item.id && (
+                <span className="h-0.5 w-4 rounded-full bg-[#145c91]" />
+              )}
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

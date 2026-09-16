@@ -727,13 +727,7 @@ export default function AIAssistant({
 
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isLoggedIn) {
-                          onNavigate("finder");
-                        } else {
-                          onNavigate("login");
-                        }
-                      }}
+                      onClick={() => onNavigate("finder")}
                       className="flex items-center gap-1.5 rounded-lg border border-[#dce4ea] bg-[#f7fafc] px-3 py-2 text-[12px] font-semibold text-[#145c91] transition hover:bg-[#eef7fb]"
                     >
                       <Search size={13} />
@@ -1293,13 +1287,7 @@ export default function AIAssistant({
                     {showFinder && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (isLoggedIn) {
-                            onNavigate("finder");
-                          } else {
-                            onNavigate("login");
-                          }
-                        }}
+                        onClick={() => onNavigate("finder")}
                         className="flex items-center gap-1.5 rounded-lg border border-[#dce4ea] bg-[#f7fafc] px-3 py-1.5 text-[12px] font-semibold text-[#145c91] transition hover:bg-[#eef7fb] shadow-2xs"
                       >
                         <Search size={13} />

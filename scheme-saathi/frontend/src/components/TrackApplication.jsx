@@ -667,7 +667,7 @@ export default function TrackApplication({
                           {/* Step Connector Line */}
                           {idx < STAGES_MASTER.length - 1 && (
                             <div
-                              className={`absolute left-1/2 top-4 -z-0 h-0.5 w-full ${
+                              className={`absolute left-1/2 top-4 z-0 h-0.5 w-full ${
                                 idx < status.current_stage_index
                                   ? "bg-[#20835c]"
                                   : "bg-[#e0e8ef]"

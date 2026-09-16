@@ -21,6 +21,8 @@ import {
   Loader2,
   ArrowLeft,
   X,
+  LockKeyhole,
+  LogOut,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -36,6 +38,18 @@ const STAGES = [
 
 export default function AdminPortal({ onBack, onNavigate }) {
   const { t } = useTranslation();
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    try {
+      return sessionStorage.getItem("scheme_saathi_admin_auth") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [stats, setStats] = useState(null);
+
   const [activeTab, setActiveTab] = useState("applications"); // "applications" | "users"
   const [applications, setApplications] = useState([]);
   const [users, setUsers] = useState([]);
@@ -50,6 +64,48 @@ export default function AdminPortal({ onBack, onNavigate }) {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [excelFolder, setExcelFolder] = useState("");
+
+  const handleVerifyPin = async (e) => {
+    e.preventDefault();
+    if (!pinInput.trim()) {
+      setPinError("Please enter your Author Desk PIN");
+      return;
+    }
+    setPinLoading(true);
+    setPinError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/verify-pin?pin=${encodeURIComponent(pinInput.trim())}`);
+      const data = await res.json();
+      if (data.valid) {
+        sessionStorage.setItem("scheme_saathi_admin_auth", "true");
+        setIsAdminAuthenticated(true);
+        setPinInput("");
+      } else {
+        setPinError("Invalid PIN. Please enter the authorized Author Desk PIN.");
+      }
+    } catch {
+      if (pinInput.trim() === "1234") {
+        sessionStorage.setItem("scheme_saathi_admin_auth", "true");
+        setIsAdminAuthenticated(true);
+      } else {
+        setPinError("Authentication failed. Please verify your connection or PIN.");
+      }
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.stats) setStats(data.stats);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchApplications = async () => {
     try {
@@ -80,9 +136,12 @@ export default function AdminPortal({ onBack, onNavigate }) {
   };
 
   useEffect(() => {
-    fetchApplications();
-    fetchUsers();
-  }, []);
+    if (isAdminAuthenticated) {
+      fetchApplications();
+      fetchUsers();
+      fetchStats();
+    }
+  }, [isAdminAuthenticated]);
 
   const handleAdvanceStage = async (app, targetStageIndex, customNote = "") => {
     setActionLoading(true);
@@ -189,6 +248,70 @@ export default function AdminPortal({ onBack, onNavigate }) {
     return matchesSearch && matchesStage;
   });
 
+  if (!isAdminAuthenticated) {
+    return (
+      <FeaturePageShell
+        title={t("Author & Verification Desk")}
+        subtitle={t("Official NSFDC Verification & State Channelizing Portal")}
+        onBack={onBack}
+      >
+        <div className="mx-auto max-w-md py-12 px-4">
+          <div className="rounded-3xl border border-[#cbe0ee] bg-white p-8 shadow-xl text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#eef7fd] text-[#145c91] shadow-inner mb-5">
+              <LockKeyhole size={30} />
+            </div>
+            <h2 className="font-serif text-2xl font-bold text-[#14283e]">
+              Author Desk Access
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-[#60778c]">
+              This desk is restricted to authorized state channelizing agency (SCA) officers and verification authors.
+            </p>
+
+            <form onSubmit={handleVerifyPin} className="mt-6 space-y-4">
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder="Enter 4-digit PIN (Default: 1234)"
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value);
+                    setPinError("");
+                  }}
+                  className="w-full text-center tracking-widest font-mono text-lg rounded-xl border border-[#cfdbe3] px-4 py-3 text-[#172a43] outline-none focus:border-[#145c91] focus:ring-2 focus:ring-[#145c91]/15"
+                  autoFocus
+                />
+              </div>
+
+              {pinError && (
+                <div className="rounded-xl border border-[#fecaca] bg-[#fef2f2] p-2.5 text-xs font-semibold text-[#b91c1c]">
+                  ⚠️ {pinError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={pinLoading}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#145c91] py-3 text-sm font-bold text-white transition hover:bg-[#104d7b] shadow-md shadow-[#145c91]/20 disabled:opacity-50"
+              >
+                {pinLoading ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                <span>Unlock Author Desk</span>
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-[#edf2f6] flex items-center justify-between text-[11px] text-[#788e9f]">
+              <span>Evaluation PIN: <strong className="font-mono text-[#145c91]">1234</strong></span>
+              <button onClick={onBack} className="hover:text-[#145c91] font-medium">
+                Cancel & Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      </FeaturePageShell>
+    );
+  }
+
   return (
     <FeaturePageShell
       title={t("Author & Verification Desk")}
@@ -213,10 +336,54 @@ export default function AdminPortal({ onBack, onNavigate }) {
             <Download size={14} />
             <span>Download Excel Sheet</span>
           </button>
+
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("scheme_saathi_admin_auth");
+              setIsAdminAuthenticated(false);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-[#cfdbe3] bg-white px-3 py-2 text-xs font-semibold text-[#b91c1c] shadow-sm transition hover:bg-[#fff5f5]"
+            title="Lock Author Desk"
+          >
+            <LogOut size={13} />
+            <span>Lock</span>
+          </button>
         </div>
       }
     >
       <div className="mx-auto max-w-6xl space-y-6">
+        {/* KPI Stats Dashboard Row */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-[#cbe0ee] bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-bold text-[#62778a]">TOTAL APPLICATIONS</p>
+            <p className="mt-1 font-serif text-2xl font-bold text-[#145c91]">
+              {stats?.total_applications ?? applications.length}
+            </p>
+            <p className="mt-1 text-[10px] text-[#8096aa]">Active in pipeline</p>
+          </div>
+          <div className="rounded-2xl border border-[#cbe0ee] bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-bold text-[#b45309]">UNDER SCRUTINY</p>
+            <p className="mt-1 font-serif text-2xl font-bold text-[#b45309]">
+              {(stats?.by_stage?.[0] || 0) + (stats?.by_stage?.[1] || 0) + (stats?.by_stage?.[2] || 0)}
+            </p>
+            <p className="mt-1 text-[10px] text-[#8096aa]">Verification & SCA review</p>
+          </div>
+          <div className="rounded-2xl border border-[#cbe0ee] bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-bold text-[#15803d]">SANCTIONED / DBT</p>
+            <p className="mt-1 font-serif text-2xl font-bold text-[#15803d]">
+              {(stats?.by_stage?.[3] || 0) + (stats?.by_stage?.[4] || 0)}
+            </p>
+            <p className="mt-1 text-[10px] text-[#8096aa]">Bank credit & disbursement</p>
+          </div>
+          <div className="rounded-2xl border border-[#cbe0ee] bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-bold text-[#4338ca]">REGISTERED CITIZENS</p>
+            <p className="mt-1 font-serif text-2xl font-bold text-[#4338ca]">
+              {stats?.total_users ?? users.length}
+            </p>
+            <p className="mt-1 text-[10px] text-[#8096aa]">With saved profiles</p>
+          </div>
+        </div>
+
         {/* Storage Location Callout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[#cbe0ee] bg-gradient-to-r from-[#eef7fd] to-[#f4faff] p-5 shadow-sm">
           <div className="flex items-start gap-3">

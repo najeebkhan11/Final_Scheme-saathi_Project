@@ -1,0 +1,21 @@
+{
+  "name": "Scheme Saathi — NSFDC Government Schemes",
+  "short_name": "Scheme Saathi",
+  "description": "AI-powered government scheme matching and tracking for NSFDC beneficiaries",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#145c91",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["government", "finance", "utilities"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "orientation": "portrait-primary"
+}

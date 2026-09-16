@@ -115,7 +115,9 @@ def update_application_stage(application_id: str, req: UpdateStageRequest):
         status_code = req.status_code or meta["default_code"]
         status_label = req.status_label or meta["default_label"]
         official_note = req.official_note or meta["default_note"]
-        action_req = req.action_required if req.action_required is not None else app_data.get("action_required")
+        action_req = req.action_required if req.action_required is not None else (
+            None if target_idx > app_data.get("current_stage_index", 0) else app_data.get("action_required")
+        )
 
         now_str = datetime.now().strftime("%d %b %Y, %I:%M %p")
         today_date = datetime.now().strftime("%Y-%m-%d")
@@ -212,6 +214,63 @@ def get_all_users():
 def trigger_excel_sync():
     res = sync_all_admin_excel()
     return res
+
+
+@router.get("/stats")
+def get_admin_stats():
+    """Return aggregate stats for the Author Desk dashboard."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM user_applications")
+        total_apps = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM user_applications WHERE user_id IS NOT NULL")
+        total_users_with_apps = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM user_applications WHERE status_code = 'APPROVED'")
+        approved = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM user_applications WHERE status_code = 'ACTION_REQUIRED'")
+        action_required = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT current_stage_index, COUNT(*) as cnt FROM user_applications GROUP BY current_stage_index ORDER BY current_stage_index"
+        )
+        stage_rows = cursor.fetchall()
+        by_stage = {row[0]: row[1] for row in stage_rows}
+
+        cursor.execute(
+            "SELECT scheme_id, COUNT(*) as cnt FROM user_applications GROUP BY scheme_id ORDER BY cnt DESC LIMIT 5"
+        )
+        scheme_rows = cursor.fetchall()
+        top_schemes = [{"scheme_id": row[0], "count": row[1]} for row in scheme_rows]
+
+    return {
+        "status": "success",
+        "stats": {
+            "total_applications": total_apps,
+            "total_users": total_users,
+            "total_users_with_apps": total_users_with_apps,
+            "approved": approved,
+            "action_required": action_required,
+            "by_stage": by_stage,
+            "top_schemes": top_schemes,
+        },
+    }
+
+
+@router.get("/verify-pin")
+def verify_admin_pin(pin: str):
+    """Verify admin PIN against the ADMIN_PIN environment variable (default: 1234)."""
+    import os
+    correct_pin = os.environ.get("ADMIN_PIN", "1234")
+    if pin == correct_pin:
+        return {"status": "success", "valid": True}
+    return {"status": "error", "valid": False}
 
 
 @router.get("/download-excel")

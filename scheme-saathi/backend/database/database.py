@@ -153,6 +153,7 @@ def init_db():
                 existing_loan TEXT,
                 outstanding_amount REAL,
                 overdue TEXT,
+                full_name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -203,6 +204,11 @@ def init_db():
             pass
         try:
             conn.execute("ALTER TABLE user_applications ADD COLUMN mobile TEXT")
+        except Exception:
+            pass
+        # Add full_name column if not exists (migration for older DBs)
+        try:
+            conn.execute("ALTER TABLE user_profiles ADD COLUMN full_name TEXT")
         except Exception:
             pass
 
