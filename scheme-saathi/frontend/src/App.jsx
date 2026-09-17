@@ -241,12 +241,16 @@ function AppContent() {
                 onBack={() => setView("home")}
                 onFindScheme={openSchemeFinder}
                 lastSchemeResults={lastSchemeResults}
+                initialApplicationId={selectedTrackAppId}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogin={() => setView("login")}
                 onLogout={handleLogout}
                 onNavigate={(page, query = "") => {
-                  if (query) setAiInitialQuery(query);
+                  if (query) {
+                    if (page === "ai_assistant") setAiInitialQuery(query);
+                    else setSelectedTrackAppId(query);
+                  }
                   setView(page);
                 }}
               />
@@ -259,7 +263,10 @@ function AppContent() {
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onNavigate={(page, query = "") => {
-                  if (query) setAiInitialQuery(query);
+                  if (query) {
+                    if (page === "ai_assistant") setAiInitialQuery(query);
+                    else setSelectedTrackAppId(query);
+                  }
                   setView(page);
                 }}
               />

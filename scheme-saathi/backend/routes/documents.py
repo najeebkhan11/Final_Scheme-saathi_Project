@@ -37,6 +37,21 @@ ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
+def _get_or_create_app(conn, app_id: str):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
+    row = cursor.fetchone()
+    if row:
+        return row
+    try:
+        from routes.applications import generate_ai_application_dossier
+        generate_ai_application_dossier(app_id)
+        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
+        return cursor.fetchone()
+    except Exception:
+        return None
+
+
 class DocumentActionRequest(BaseModel):
     rejection_reason: Optional[str] = None
     remarks: Optional[str] = None
@@ -49,7 +64,7 @@ def provision_application_documents(conn, application_id: str, scheme_id: str, u
     """
     cursor = conn.cursor()
 
-    # Query configured scheme documents
+    s_upper = (scheme_id or "").upper().strip()
     cursor.execute(
         """
         SELECT document_type, document_name, required, category, description
@@ -57,9 +72,21 @@ def provision_application_documents(conn, application_id: str, scheme_id: str, u
         WHERE scheme_id = ? AND active = 1
         ORDER BY id ASC
         """,
-        (scheme_id.upper(),),
+        (s_upper,),
     )
     rules = cursor.fetchall()
+
+    if not rules and "-" in s_upper:
+        cursor.execute(
+            """
+            SELECT document_type, document_name, required, category, description
+            FROM scheme_documents
+            WHERE scheme_id = ? AND active = 1
+            ORDER BY id ASC
+            """,
+            (s_upper.replace("-", ""),),
+        )
+        rules = cursor.fetchall()
 
     if not rules:
         # Fallback to DEFAULT scheme rules
@@ -151,11 +178,11 @@ def get_application_documents(application_id: str):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
+
+        cursor = conn.cursor()
 
         # Ensure documents are provisioned
         provision_application_documents(conn, app_row["application_id"], app_row["scheme_id"], app_row["user_id"])
@@ -267,23 +294,21 @@ async def upload_application_document(
         raise HTTPException(status_code=400, detail="File size exceeds the 5 MB limit.")
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
+
+        cursor = conn.cursor()
 
         # Ensure documents are provisioned
         provision_application_documents(conn, app_row["application_id"], app_row["scheme_id"], app_row["user_id"])
         conn.commit()
 
         cursor.execute(
-            "SELECT * FROM user_documents WHERE lower(application_id) = lower(?) AND doc_type = ?",
-            (app_id, doc_type),
+            "SELECT * FROM user_documents WHERE lower(application_id) = lower(?) AND (lower(doc_type) = lower(?) OR lower(doc_type) = lower(?)) LIMIT 1",
+            (app_id, doc_type, doc_type.replace("-", "_")),
         )
         doc_row = cursor.fetchone()
-
-        doc_ref = doc_row["document_id"] if doc_row and doc_row["document_id"] else f"DOC-{app_id[-8:]}-{doc_type[:6].upper()}"
 
         # Save file to disk
         app_dir = UPLOAD_DIR / app_id
@@ -296,6 +321,7 @@ async def upload_application_document(
 
         old_status = doc_row["status"] if doc_row else "MISSING"
         new_status = "UNDER_VERIFICATION"
+        doc_ref = doc_row["document_id"] if doc_row and doc_row["document_id"] else f"DOC-{app_id[-8:]}-{doc_type[:6].upper()}-{int(datetime.now().timestamp())}"
 
         if doc_row:
             cursor.execute(
@@ -326,7 +352,7 @@ async def upload_application_document(
                     doc_ref,
                     app_row["application_id"],
                     app_row["user_id"],
-                    doc_type,
+                    doc_type.lower(),
                     doc_type.replace("_", " ").title(),
                     str(save_path),
                     file.filename,

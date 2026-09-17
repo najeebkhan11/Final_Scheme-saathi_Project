@@ -555,8 +555,8 @@ def _seed_scheme_documents(conn):
         add("AMY", "equipment_quotation", "Activity Cost Breakdown", True, "business", "Summary of raw materials, tools, or equipment needed.")
         add("AMY", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph.")
 
-        # --- Term Loan (TL / TERM_LOAN) ---
-        for tl_id in ["TL", "TERM_LOAN"]:
+        # --- Term Loan (TL / TL-1 / TERM_LOAN / TERM) ---
+        for tl_id in ["TL", "TL-1", "TERM_LOAN", "TERM"]:
             add(tl_id, "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof for DigiLocker e-KYC.")
             add(tl_id, "pan_card", "Permanent Account Number (PAN Card)", True, "kyc", "Mandatory for commercial term loans and bank credit appraisal.")
             add(tl_id, "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Digital caste certificate issued by Tehsildar / SDO.")
@@ -579,17 +579,36 @@ def _seed_scheme_documents(conn):
         add("UNY", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph.")
         add("UNY", "msme_udyam", "Udyam Registration Certificate", False, "business", "MSME registration certificate for priority processing.")
 
-        # --- Educational Loan Scheme (ELS) ---
-        add("ELS", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof of student.")
-        add("ELS", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Caste certificate of student or parent.")
-        add("ELS", "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Family income proof within ₹5,00,000 limit.")
-        add("ELS", "bank_passbook", "Student / Joint Bank Account Passbook", True, "banking", "Aadhaar-linked student savings account.")
-        add("ELS", "admission_letter", "Official Admission / Enrollment Letter with Bonafide Status", True, "education", "Unconditional offer letter or confirmed seat allotment slip.")
-        add("ELS", "fee_structure", "Official Course Fee Schedule & Expense Breakdown", True, "education", "Institution circular showing semester-wise tuition, hostel, and exam fees.")
-        add("ELS", "academic_marksheets", "Academic Marksheets & Certificates (10th, 12th, Degree)", True, "education", "Self-attested copies of Class 10, 12, or UG transcripts.")
-        add("ELS", "parent_undertaking", "Parent / Guardian Co-Obligation Undertaking", True, "education", "Signed undertaking confirming repayment support.")
-        add("ELS", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Passport photographs of student and co-obligant.")
-        add("ELS", "entrance_scorecard", "Competitive Entrance Exam Scorecard (JEE, NEET, etc.)", False, "education", "Merit entrance examination rank card.")
+        # --- Educational Loan Scheme (ELS / EL) ---
+        for el_id in ["ELS", "EL", "EDU"]:
+            add(el_id, "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof of student.")
+            add(el_id, "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Caste certificate of student or parent.")
+            add(el_id, "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Family income proof within ₹5,00,000 limit.")
+            add(el_id, "bank_passbook", "Student / Joint Bank Account Passbook", True, "banking", "Aadhaar-linked student savings account.")
+            add(el_id, "admission_letter", "Official Admission / Enrollment Letter with Bonafide Status", True, "education", "Unconditional offer letter or confirmed seat allotment slip.")
+            add(el_id, "fee_structure", "Official Course Fee Schedule & Expense Breakdown", True, "education", "Institution circular showing semester-wise tuition, hostel, and exam fees.")
+            add(el_id, "academic_marksheets", "Academic Marksheets & Certificates (10th, 12th, Degree)", True, "education", "Self-attested copies of Class 10, 12, or UG transcripts.")
+            add(el_id, "parent_undertaking", "Parent / Guardian Co-Obligation Undertaking", True, "education", "Signed undertaking confirming repayment support.")
+            add(el_id, "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Passport photographs of student and co-obligant.")
+            add(el_id, "entrance_scorecard", "Competitive Entrance Exam Scorecard (JEE, NEET, etc.)", False, "education", "Merit entrance examination rank card.")
+
+        # --- Mahila Schemes (MSY / MCF) ---
+        for m_id in ["MSY", "MCF"]:
+            add(m_id, "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity proof.")
+            add(m_id, "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Revenue caste certificate.")
+            add(m_id, "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Family income certificate.")
+            add(m_id, "bank_passbook", "Women Beneficiary Bank Passbook", True, "banking", "Aadhaar-seeded personal bank account.")
+            add(m_id, "trade_proposal", "Activity Proposal / Enterprise Plan", True, "business", "Description of micro-business or agriculture activity.")
+            add(m_id, "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent passport photograph.")
+
+        # --- Centrally Sponsored & Green Schemes (CTS / GBC) ---
+        for g_id in ["CTS", "GBC", "GBS"]:
+            add(g_id, "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof.")
+            add(g_id, "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Revenue authority caste certificate.")
+            add(g_id, "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Income certificate within ceiling.")
+            add(g_id, "bank_passbook", "Bank Account Passbook", True, "banking", "Active bank account.")
+            add(g_id, "project_report", "Skill / Business Project Report", True, "business", "Outline of green business or training skill.")
+            add(g_id, "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Passport photo.")
 
         # --- VISVAS Scheme ---
         add("VISVAS", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity proof.")

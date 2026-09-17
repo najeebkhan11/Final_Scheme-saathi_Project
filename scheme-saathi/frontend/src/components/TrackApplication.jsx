@@ -21,6 +21,7 @@ import {
   FileCheck,
   Upload,
   Ban,
+  Eye,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -56,6 +57,9 @@ export default function TrackApplication({
   const [appDocuments, setAppDocuments] = useState([]);
   const [appDocSummary, setAppDocSummary] = useState(null);
   const [appAuditLogs, setAppAuditLogs] = useState([]);
+  const [uploadLoadingDoc, setUploadLoadingDoc] = useState(null);
+  const [docUploadSuccess, setDocUploadSuccess] = useState("");
+  const [docUploadError, setDocUploadError] = useState("");
 
   const loadApplicationDetails = (appId) => {
     if (!appId) return;
@@ -79,6 +83,51 @@ export default function TrackApplication({
         }
       })
       .catch(() => {});
+  };
+
+  const handleTrackDocUpload = async (docType, file) => {
+    const targetAppId = status?.application_id || applicationId;
+    if (!targetAppId || !file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setDocUploadError(`File '${file.name}' exceeds the 5 MB limit. Please select a smaller PDF or image.`);
+      return;
+    }
+
+    setUploadLoadingDoc(docType);
+    setDocUploadError("");
+    setDocUploadSuccess("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const token = localStorage.getItem("scheme_saathi_token");
+    const headers = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/applications/${encodeURIComponent(targetAppId)}/documents/${encodeURIComponent(docType)}/upload`,
+        {
+          method: "POST",
+          headers,
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setDocUploadSuccess(`Document '${file.name}' uploaded successfully! Status updated to Under Verification.`);
+        loadApplicationDetails(targetAppId);
+      } else {
+        const err = await res.json().catch(() => null);
+        setDocUploadError(err?.detail || "Failed to upload document. Please try again.");
+      }
+    } catch {
+      setDocUploadError("Connection error while uploading. Please check your internet connection.");
+    } finally {
+      setUploadLoadingDoc(null);
+    }
   };
 
   // Fetch real user applications from SQLite if logged in
@@ -920,12 +969,27 @@ export default function TrackApplication({
                 )}
               </div>
 
+              {/* Upload Feedback Messages */}
+              {docUploadSuccess && (
+                <div className="mt-3 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-3 text-xs font-semibold text-[#166534] flex items-center justify-between">
+                  <span>✅ {docUploadSuccess}</span>
+                  <button onClick={() => setDocUploadSuccess("")} className="text-gray-400 hover:text-gray-600 font-bold ml-2">×</button>
+                </div>
+              )}
+
+              {docUploadError && (
+                <div className="mt-3 rounded-xl border border-[#fecaca] bg-[#fef2f2] p-3 text-xs font-semibold text-[#b91c1c] flex items-center justify-between">
+                  <span>⚠️ {docUploadError}</span>
+                  <button onClick={() => setDocUploadError("")} className="text-gray-400 hover:text-gray-600 font-bold ml-2">×</button>
+                </div>
+              )}
+
               {appDocuments.length > 0 ? (
-                <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {appDocuments.map((doc) => (
                     <div
                       key={doc.document_id}
-                      className={`flex items-start justify-between gap-2 rounded-xl border p-3 text-xs transition ${
+                      className={`flex flex-col justify-between gap-3 rounded-xl border p-3.5 text-xs transition ${
                         doc.status === "VERIFIED"
                           ? "border-[#bbf7d0] bg-[#f9fefb]"
                           : doc.status === "REJECTED"
@@ -935,33 +999,105 @@ export default function TrackApplication({
                           : "border-[#e2ebf1] bg-[#fbfdfe]"
                       }`}
                     >
-                      <div>
-                        <p className="font-semibold text-[#172a43]">{doc.document_name}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-[#172a43]">{doc.document_name}</p>
+                            {doc.required ? (
+                              <span className="rounded bg-[#fee2e2] px-1.5 py-0.2 text-[9px] font-bold text-[#b91c1c]">
+                                MANDATORY
+                              </span>
+                            ) : (
+                              <span className="rounded bg-[#f1f5f9] px-1.5 py-0.2 text-[9px] font-semibold text-[#64748b]">
+                                OPTIONAL
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              doc.status === "VERIFIED"
+                                ? "bg-[#e5f7ed] text-[#1e824c]"
+                                : doc.status === "REJECTED"
+                                ? "bg-[#fee2e2] text-[#b91c1c]"
+                                : doc.status === "UNDER_VERIFICATION"
+                                ? "bg-[#fef3dd] text-[#b45309]"
+                                : "bg-[#f1f5f9] text-[#64748b]"
+                            }`}
+                          >
+                            {doc.status === "UNDER_VERIFICATION" ? "UNDER REVIEW" : doc.status}
+                          </span>
+                        </div>
+
                         {doc.file_name && (
-                          <p className="text-[11px] text-[#5b7185] mt-0.5">
-                            File: {doc.file_name}
+                          <p className="text-[11px] text-[#5b7185]">
+                            Uploaded: <strong>{doc.file_name}</strong> ({Math.round((doc.file_size || 0) / 1024)} KB)
                           </p>
                         )}
+
                         {doc.rejection_reason && (
-                          <p className="mt-1 text-[11px] text-[#b91c1c] font-medium bg-[#fee2e2] p-1 rounded">
-                            Deficiency: {doc.rejection_reason}
-                          </p>
+                          <div className="mt-1 rounded-lg bg-[#fee2e2] p-2 text-[11px] text-[#991b1b] border border-[#fecaca]">
+                            <strong>Deficiency:</strong> {doc.rejection_reason}
+                            <p className="mt-0.5 text-[10px] text-[#b91c1c]">Please re-upload a clear corrected document below.</p>
+                          </div>
                         )}
                       </div>
 
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          doc.status === "VERIFIED"
-                            ? "bg-[#e5f7ed] text-[#1e824c]"
-                            : doc.status === "REJECTED"
-                            ? "bg-[#fee2e2] text-[#b91c1c]"
-                            : doc.status === "UNDER_VERIFICATION"
-                            ? "bg-[#fef3dd] text-[#b45309]"
-                            : "bg-[#f1f5f9] text-[#64748b]"
-                        }`}
-                      >
-                        {doc.status}
-                      </span>
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#f1f5f9]">
+                        {doc.view_url && (
+                          <a
+                            href={`${API_BASE_URL}${doc.view_url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-[#cfdbe3] bg-white px-2.5 py-1.5 text-xs font-bold text-[#2d4965] hover:bg-[#f2f6fa] shadow-2xs"
+                          >
+                            <Eye size={12} />
+                            View
+                          </a>
+                        )}
+
+                        <label
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer ${
+                            uploadLoadingDoc === doc.document_type
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : doc.status === "REJECTED"
+                              ? "bg-[#dc2626] hover:bg-[#b91c1c]"
+                              : doc.status === "VERIFIED"
+                              ? "bg-[#52796f] hover:bg-[#354f52]"
+                              : doc.status === "UNDER_VERIFICATION"
+                              ? "bg-[#d97706] hover:bg-[#b45309]"
+                              : "bg-[#145c91] hover:bg-[#104d7b]"
+                          }`}
+                        >
+                          {uploadLoadingDoc === doc.document_type ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Upload size={13} />
+                          )}
+                          <span>
+                            {uploadLoadingDoc === doc.document_type
+                              ? "Uploading..."
+                              : doc.status === "REJECTED"
+                              ? "Upload Corrected"
+                              : doc.status === "UNDER_VERIFICATION"
+                              ? "Replace File"
+                              : doc.status === "VERIFIED"
+                              ? "Re-upload"
+                              : "Upload Document"}
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            disabled={uploadLoadingDoc === doc.document_type}
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) {
+                                handleTrackDocUpload(doc.document_type, e.target.files[0]);
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
                     </div>
                   ))}
                 </div>

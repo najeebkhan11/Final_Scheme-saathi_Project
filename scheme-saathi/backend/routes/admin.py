@@ -96,17 +96,31 @@ def get_all_applications(
     }
 
 
+def _get_or_create_app(conn, app_id: str):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
+    row = cursor.fetchone()
+    if row:
+        return row
+    try:
+        from routes.applications import generate_ai_application_dossier
+        generate_ai_application_dossier(app_id)
+        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
+        return cursor.fetchone()
+    except Exception:
+        return None
+
+
 @router.post("/applications/{application_id}/update-stage")
 def update_application_stage(application_id: str, req: UpdateStageRequest):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        row = cursor.fetchone()
-
+        row = _get_or_create_app(conn, app_id)
         if not row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found in database.")
+
+        cursor = conn.cursor()
 
         app_data = dict(row)
         target_idx = req.target_stage_index
@@ -210,11 +224,11 @@ def get_application_full_dossier(application_id: str):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
+
+        cursor = conn.cursor()
 
         # Ensure documents exist
         from routes.documents import provision_application_documents
@@ -322,12 +336,11 @@ def proceed_to_sca_review(application_id: str, req: StageActionRequest):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
 
+        cursor = conn.cursor()
         app_data = dict(app_row)
 
         # Query all required documents
@@ -427,12 +440,11 @@ def review_sca_stage(application_id: str, req: StageActionRequest):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
 
+        cursor = conn.cursor()
         app_data = dict(app_row)
         now_dt = datetime.now()
         now_str = now_dt.strftime("%d %b %Y, %I:%M %p")
@@ -514,12 +526,11 @@ def sanction_bank_loan(application_id: str, req: StageActionRequest):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
 
+        cursor = conn.cursor()
         app_data = dict(app_row)
         now_dt = datetime.now()
         now_str = now_dt.strftime("%d %b %Y, %I:%M %p")
@@ -602,12 +613,11 @@ def record_disbursement(application_id: str, req: StageActionRequest):
     app_id = application_id.strip()
 
     with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_applications WHERE lower(application_id) = lower(?)", (app_id,))
-        app_row = cursor.fetchone()
+        app_row = _get_or_create_app(conn, app_id)
         if not app_row:
             raise HTTPException(status_code=404, detail=f"Application {app_id} not found.")
 
+        cursor = conn.cursor()
         app_data = dict(app_row)
         now_dt = datetime.now()
         now_str = now_dt.strftime("%d %b %Y, %I:%M %p")

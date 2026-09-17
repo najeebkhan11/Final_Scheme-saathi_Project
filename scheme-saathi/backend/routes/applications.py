@@ -196,9 +196,50 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
 
     mobile_num = last10 if len(last10) >= 10 else (clean_val if len(clean_val) <= 12 else "9876543210")
 
-    # Deterministic application ID so tracking the same number always yields the exact same ID
-    hash_part = hashlib.md5(clean_val.encode()).hexdigest()[:4].upper()
-    app_id = f"SS-2026-MFS-{hash_part}"
+    # If already in Application ID format (e.g. starts with "SS-"), preserve exact ID
+    upper_query = clean_val.upper()
+    if upper_query.startswith("SS-"):
+        app_id = upper_query
+    else:
+        hash_part = hashlib.md5(clean_val.encode()).hexdigest()[:4].upper()
+        app_id = f"SS-2026-MFS-{hash_part}"
+
+    # Deduce scheme metadata from application ID or context
+    if any(k in app_id for k in ["TERM", "TL-", "TL1"]):
+        scheme_id = "TL-1"
+        scheme_name = "Term Loan Scheme (TL-1)"
+        scheme_type = "PRIMARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 5,00,000"
+    elif any(k in app_id for k in ["EL", "EDU"]):
+        scheme_id = "EL"
+        scheme_name = "Education Loan Scheme (EL)"
+        scheme_type = "PRIMARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 10,00,000"
+    elif "MSY" in app_id:
+        scheme_id = "MSY"
+        scheme_name = "Mahila Samriddhi Yojana (MSY)"
+        scheme_type = "PRIMARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 1,40,000"
+    elif any(k in app_id for k in ["MCF", "KISAN"]):
+        scheme_id = "MCF"
+        scheme_name = "Mahila Kisan Yojana (MCF)"
+        scheme_type = "SECONDARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 2,00,000"
+    elif any(k in app_id for k in ["CTS", "SKILL"]):
+        scheme_id = "CTS"
+        scheme_name = "Centrally Sponsored Scheme (CTS)"
+        scheme_type = "PRIMARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 2,00,000"
+    elif any(k in app_id for k in ["GBC", "GREEN", "GBS"]):
+        scheme_id = "GBC"
+        scheme_name = "Green Business Scheme (GBS)"
+        scheme_type = "SECONDARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 3,00,000"
+    else:
+        scheme_id = "MFS"
+        scheme_name = "Micro Finance Scheme (MFS)"
+        scheme_type = "PRIMARY"
+        required_loan = required_loan if required_loan != "₹ 1,40,000" else "₹ 1,40,000"
 
     now = datetime.now()
     submission_dt = now - timedelta(days=4)
@@ -214,7 +255,7 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
         if client:
             prompt = (
                 f"You are the official verification desk at NSFDC (National Scheduled Castes Finance and Development Corporation). "
-                f"Beneficiary '{applicant_name}' with mobile '{mobile_num}' from {district}, {state} has submitted an application for Micro Finance Scheme (MFS). "
+                f"Beneficiary '{applicant_name}' with mobile '{mobile_num}' from {district}, {state} has submitted an application for {scheme_name}. "
                 f"Write a concise, professional 1-sentence official scrutiny remark confirming that Aadhaar e-KYC and category documents are validated and scrutiny is in progress."
             )
             model_name = _get_model_name()
@@ -240,7 +281,7 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
             "subtitle": "Online Submission via Scheme Saathi",
             "date": submission_dt.strftime("%d %b %Y, %I:%M %p"),
             "status": "COMPLETED",
-            "remarks": f"Application for Micro Finance Scheme (MFS) recorded under Reference #{app_id}."
+            "remarks": f"Application for {scheme_name} recorded under Reference #{app_id}."
         },
         {
             "stage_index": 1,
@@ -306,9 +347,9 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
                 applicant_name,
                 mobile_num,
                 "XXXXXX" + mobile_num[-4:] if len(mobile_num) >= 4 else "XXXXXX0000",
-                "MFS",
-                "Micro Finance Scheme (MFS)",
-                "PRIMARY",
+                scheme_id,
+                scheme_name,
+                scheme_type,
                 "National Scheduled Castes Finance and Development Corporation (NSFDC)",
                 required_loan,
                 purpose,
@@ -326,10 +367,10 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
             ),
         )
 
-        # Provision document requirements for MFS
+        # Provision document requirements for scheme
         try:
             from routes.documents import provision_application_documents
-            provision_application_documents(conn, app_id, "MFS", user_id)
+            provision_application_documents(conn, app_id, scheme_id, user_id)
             from services.audit import log_application_action
             log_application_action(
                 application_id=app_id,
@@ -337,7 +378,7 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
                 role="USER",
                 user_id=user_id,
                 new_status="IN_PROGRESS",
-                remarks=f"Application journey generated and recorded under Reference #{app_id}.",
+                remarks=f"Application journey generated and recorded under Reference #{app_id} ({scheme_name}).",
                 conn=conn,
             )
         except Exception:

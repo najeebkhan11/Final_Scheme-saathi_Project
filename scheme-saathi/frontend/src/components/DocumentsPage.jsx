@@ -37,6 +37,7 @@ export default function DocumentsPage({
   currentUser = null,
   onLogin,
   onLogout,
+  initialApplicationId = "",
 }) {
   const { t } = useTranslation();
 
@@ -79,13 +80,48 @@ export default function DocumentsPage({
 
   // User applications & Live Document Scrutiny States
   const [userApplications, setUserApplications] = useState([]);
-  const [selectedAppId, setSelectedAppId] = useState("");
+  const [selectedAppId, setSelectedAppId] = useState(() => {
+    if (initialApplicationId) return initialApplicationId;
+    try {
+      const lastTracked = localStorage.getItem("scheme_saathi_last_tracked");
+      if (lastTracked) return lastTracked;
+      const recent = JSON.parse(localStorage.getItem("scheme_saathi_recent_tracks") || "[]");
+      if (recent.length > 0) return recent[0];
+      const apps = JSON.parse(localStorage.getItem("scheme_saathi_applications") || "[]");
+      if (apps.length > 0 && apps[0].application_id) return apps[0].application_id;
+    } catch {}
+    return "SS-2026-TERM-7099";
+  });
+  const [manualAppInput, setManualAppInput] = useState("");
+  const [recentTrackedIds, setRecentTrackedIds] = useState(() => {
+    try {
+      const list = JSON.parse(localStorage.getItem("scheme_saathi_recent_tracks") || "[]");
+      const savedApps = JSON.parse(localStorage.getItem("scheme_saathi_applications") || "[]").map((a) => a.application_id);
+      const combined = Array.from(new Set([...list, ...savedApps, "SS-2026-TERM-7099", "SS-2026-MFS-8492"])).filter(Boolean);
+      return combined.slice(0, 5);
+    } catch {
+      return ["SS-2026-TERM-7099", "SS-2026-MFS-8492"];
+    }
+  });
   const [liveDocuments, setLiveDocuments] = useState([]);
   const [docSummary, setDocSummary] = useState(null);
   const [docsLoading, setDocsLoading] = useState(false);
   const [uploadLoadingDoc, setUploadLoadingDoc] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploadError, setUploadError] = useState("");
+
+  const handleSelectOrLoadApp = (appId) => {
+    const cleanId = (appId || "").trim();
+    if (!cleanId) return;
+    setSelectedAppId(cleanId);
+    setManualAppInput("");
+    setUploadSuccess("");
+    setUploadError("");
+    fetchLiveDocuments(cleanId);
+    try {
+      localStorage.setItem("scheme_saathi_last_tracked", cleanId);
+    } catch {}
+  };
 
   // Load user applications to select for document upload
   useEffect(() => {
@@ -99,7 +135,9 @@ export default function DocumentsPage({
       .then((data) => {
         if (data?.applications?.length > 0) {
           setUserApplications(data.applications);
-          setSelectedAppId(data.applications[0].application_id);
+          if (!initialApplicationId && !selectedAppId) {
+            setSelectedAppId(data.applications[0].application_id);
+          }
         }
       })
       .catch(() => {});
@@ -357,39 +395,87 @@ export default function DocumentsPage({
       )}
 
       {/* Application Document Upload & Live Verification Section */}
-      {userApplications.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-[#b8ddf4] bg-white p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#edf2f6] pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e8f3fb] text-[#145c91]">
-                  <Upload size={16} />
-                </span>
-                <h3 className="font-serif text-lg font-bold text-[#14283e]">
-                  Upload Documents for Active Application
-                </h3>
-              </div>
-              <p className="mt-1 text-xs text-[#526a84]">
-                Upload required certificates (PDF, JPG, PNG up to 5 MB) for scrutiny by the District Verification Cell.
-              </p>
-            </div>
-
-            {/* Application Selector */}
+      <div className="mb-8 rounded-2xl border border-[#b8ddf4] bg-white p-6 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-[#edf2f6] pb-4">
+          <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[#667d91] shrink-0">Application:</span>
-              <select
-                value={selectedAppId}
-                onChange={(e) => setSelectedAppId(e.target.value)}
-                className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs font-bold text-[#145c91] outline-none"
-              >
-                {userApplications.map((app) => (
-                  <option key={app.application_id} value={app.application_id}>
-                    {app.application_id} ({app.scheme_name || app.scheme_id})
-                  </option>
-                ))}
-              </select>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e8f3fb] text-[#145c91]">
+                <Upload size={16} />
+              </span>
+              <h3 className="font-serif text-lg font-bold text-[#14283e]">
+                Upload Documents for Application Verification
+              </h3>
             </div>
+            <p className="mt-1 text-xs text-[#526a84]">
+              Select or enter your Application ID to upload required KYC & eligibility certificates (PDF, JPG, PNG up to 5 MB).
+            </p>
           </div>
+
+          {/* Application Selector & Manual Lookup */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+            {userApplications.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[#667d91] shrink-0">Select:</span>
+                <select
+                  value={selectedAppId}
+                  onChange={(e) => handleSelectOrLoadApp(e.target.value)}
+                  className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs font-bold text-[#145c91] outline-none max-w-[220px]"
+                >
+                  {userApplications.map((app) => (
+                    <option key={app.application_id} value={app.application_id}>
+                      {app.application_id} ({app.scheme_name || app.scheme_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (manualAppInput.trim()) {
+                  handleSelectOrLoadApp(manualAppInput.trim());
+                }
+              }}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                type="text"
+                placeholder="Application ID (e.g. SS-2026-TERM-7099)"
+                value={manualAppInput}
+                onChange={(e) => setManualAppInput(e.target.value)}
+                className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs text-[#1e293b] outline-none focus:border-[#145c91] w-52"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-[#145c91] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#104d7b] transition"
+              >
+                Load
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Quick select pills */}
+        {recentTrackedIds.length > 0 && (
+          <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-[#64748b] font-medium">Quick Application IDs:</span>
+            {recentTrackedIds.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleSelectOrLoadApp(id)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border transition ${
+                  selectedAppId?.toLowerCase() === id.toLowerCase()
+                    ? "bg-[#145c91] text-white border-[#145c91]"
+                    : "bg-[#f1f5f9] text-[#475569] border-[#cbd5e1] hover:bg-[#e2e8f0]"
+                }`}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
+        )}
 
           {/* Feedback Messages */}
           {uploadSuccess && (
@@ -523,7 +609,6 @@ export default function DocumentsPage({
             </div>
           ) : null}
         </div>
-      )}
 
       {/* 1. MATCHED SCHEMES NOTIFICATION / DISCOVERY BANNER */}
       {eligibleSchemes.length > 0 ? (
