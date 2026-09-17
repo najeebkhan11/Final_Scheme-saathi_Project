@@ -17,6 +17,7 @@ import {
   ArrowRight,
   ExternalLink,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -56,7 +57,15 @@ export default function TrackApplication({
     fetch(`${API_BASE_URL}/api/applications/my-applications`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 401) {
+          try {
+            localStorage.removeItem("scheme_saathi_token");
+          } catch {}
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then((data) => {
         if (data?.applications?.length > 0) {
           setMyApplications(data.applications);
@@ -114,6 +123,13 @@ export default function TrackApplication({
             const el = document.getElementById("application-tracker-view");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }, 100);
+          return;
+        } else if (data?.found === false) {
+          setSearchError(
+            data.detail ||
+              `No application found for "${id}". Please check your Application ID or registered mobile number.`
+          );
+          setStatus(null);
           return;
         }
       } else {
@@ -181,6 +197,13 @@ export default function TrackApplication({
             const el = document.getElementById("application-tracker-view");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }, 100);
+          return;
+        } else if (data?.found === false) {
+          setSearchError(
+            data.detail ||
+              "No application found matching these details. Please verify your mobile number and name."
+          );
+          setStatus(null);
           return;
         }
       } else {
@@ -570,6 +593,11 @@ export default function TrackApplication({
                         <Copy size={12} />
                         {copied ? t("Copied!") : t("Copy")}
                       </button>
+
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#edf6fc] border border-[#bfe2f7] px-2.5 py-0.5 text-[11px] font-bold text-[#145c91]">
+                        <Sparkles size={11} className="text-[#c6a56b]" />
+                        <span>AI-Assisted Journey</span>
+                      </span>
                     </div>
 
                     <h2 className="mt-1 font-mono text-2xl font-bold tracking-tight text-[#14283e]">
