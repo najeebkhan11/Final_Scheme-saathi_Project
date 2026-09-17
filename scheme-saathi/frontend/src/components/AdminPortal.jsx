@@ -23,6 +23,10 @@ import {
   X,
   LockKeyhole,
   LogOut,
+  Eye,
+  Upload,
+  FileCheck,
+  Ban,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -64,6 +68,227 @@ export default function AdminPortal({ onBack, onNavigate }) {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [excelFolder, setExcelFolder] = useState("");
+
+  // Full Dossier Inspection states
+  const [appDossier, setAppDossier] = useState(null);
+  const [dossierLoading, setDossierLoading] = useState(false);
+  const [rejectPromptDocId, setRejectPromptDocId] = useState(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState("");
+  const [sanctionAmountInput, setSanctionAmountInput] = useState("");
+  const [disbursementRefInput, setDisbursementRefInput] = useState("");
+
+  const fetchApplicationDossier = async (appId) => {
+    try {
+      setDossierLoading(true);
+      const res = await fetch(`${API_BASE_URL}/api/admin/applications/${encodeURIComponent(appId)}/full-dossier`);
+      if (res.ok) {
+        const data = await res.json();
+        setAppDossier(data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDossierLoading(false);
+    }
+  };
+
+  const handleVerifyDocument = async (docId, docName) => {
+    try {
+      setActionLoading(true);
+      setActionError("");
+      const res = await fetch(`${API_BASE_URL}/api/documents/${encodeURIComponent(docId)}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified_by: "District Scrutiny Officer", remarks: "Approved upon verification." }),
+      });
+      if (res.ok) {
+        setActionSuccess(`Document '${docName}' verified successfully!`);
+        if (selectedApp) fetchApplicationDossier(selectedApp.application_id);
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Failed to verify document.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectDocument = async (docId, docName) => {
+    if (!rejectReasonInput.trim()) {
+      setActionError("Please enter a specific reason for rejecting this document.");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setActionError("");
+      const res = await fetch(`${API_BASE_URL}/api/documents/${encodeURIComponent(docId)}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rejection_reason: rejectReasonInput.trim(),
+          remarks: "Applicant requested to re-upload clear document.",
+        }),
+      });
+      if (res.ok) {
+        setActionSuccess(`Document '${docName}' rejected. Citizen has been notified to re-upload.`);
+        setRejectPromptDocId(null);
+        setRejectReasonInput("");
+        if (selectedApp) {
+          fetchApplicationDossier(selectedApp.application_id);
+          fetchApplications();
+        }
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Failed to reject document.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProceedToSca = async (app) => {
+    try {
+      setActionLoading(true);
+      setActionError("");
+      setActionSuccess("");
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/applications/${encodeURIComponent(app.application_id)}/proceed-to-sca`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            remarks: authorRemarks.trim() || "All mandatory documents verified. Forwarded to SCA Review.",
+            officer_name: "District Scrutiny Officer",
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setActionSuccess(`Application ${app.application_id} verified and forwarded to SCA Review!`);
+        setAuthorRemarks("");
+        fetchApplications();
+        fetchApplicationDossier(app.application_id);
+        if (data.application) setSelectedApp(data.application);
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Cannot proceed: All required documents must be VERIFIED first.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleScaReview = async (app) => {
+    try {
+      setActionLoading(true);
+      setActionError("");
+      setActionSuccess("");
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/applications/${encodeURIComponent(app.application_id)}/sca-review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            remarks: authorRemarks.trim() || "SCA quota allocation approved. Nominated to bank for sanction.",
+            officer_name: "SCA Nodal Officer",
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setActionSuccess(`Application ${app.application_id} endorsed by SCA and sent for Bank Sanction!`);
+        setAuthorRemarks("");
+        fetchApplications();
+        fetchApplicationDossier(app.application_id);
+        if (data.application) setSelectedApp(data.application);
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Failed to update SCA stage.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBankSanction = async (app) => {
+    try {
+      setActionLoading(true);
+      setActionError("");
+      setActionSuccess("");
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/applications/${encodeURIComponent(app.application_id)}/bank-sanction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sanction_amount: sanctionAmountInput.trim() || app.loan_amount || "₹ 1,50,000",
+            remarks: authorRemarks.trim() || "Bank credit sanction order executed. Ready for DBT disbursement.",
+            officer_name: "Chief Bank Credit Officer",
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setActionSuccess(`Bank Sanction issued for ${app.application_id}! Ready for DBT disbursement.`);
+        setAuthorRemarks("");
+        setSanctionAmountInput("");
+        fetchApplications();
+        fetchApplicationDossier(app.application_id);
+        if (data.application) setSelectedApp(data.application);
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Failed to sanction loan.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisbursement = async (app) => {
+    try {
+      setActionLoading(true);
+      setActionError("");
+      setActionSuccess("");
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/applications/${encodeURIComponent(app.application_id)}/disbursement`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            disbursement_ref: disbursementRefInput.trim() || undefined,
+            remarks: authorRemarks.trim() || "Direct Benefit Transfer successfully credited to Aadhaar bank account.",
+            officer_name: "Treasury DBT Officer",
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setActionSuccess(`Application ${app.application_id} DISBURSED successfully! Ref: ${data.disbursement_ref}`);
+        setAuthorRemarks("");
+        setDisbursementRefInput("");
+        fetchApplications();
+        fetchApplicationDossier(app.application_id);
+        if (data.application) setSelectedApp(data.application);
+      } else {
+        const err = await res.json().catch(() => null);
+        setActionError(err?.detail || "Failed to record disbursement.");
+      }
+    } catch {
+      setActionError("Error connecting to server.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleVerifyPin = async (e) => {
     e.preventDefault();
@@ -561,10 +786,18 @@ export default function AdminPortal({ onBack, onNavigate }) {
                             </span>
 
                             <button
-                              onClick={() => setSelectedApp(isExpanded ? null : app)}
+                              onClick={() => {
+                                if (isExpanded) {
+                                  setSelectedApp(null);
+                                  setAppDossier(null);
+                                } else {
+                                  setSelectedApp(app);
+                                  fetchApplicationDossier(app.application_id);
+                                }
+                              }}
                               className="rounded-lg border border-[#cfdbe3] bg-white px-3 py-1.5 text-xs font-bold text-[#2d4965] hover:bg-[#f2f6fa]"
                             >
-                              {isExpanded ? "Close Author Actions" : "Author Actions"}
+                              {isExpanded ? "Close Author Actions" : "Author Actions & Docs"}
                             </button>
                           </div>
                         </div>
@@ -605,110 +838,369 @@ export default function AdminPortal({ onBack, onNavigate }) {
                         </div>
                       </div>
 
-                      {/* Author Action Panel */}
+                      {/* Author Action & Document Scrutiny Panel */}
                       {isExpanded && (
-                        <div className="bg-[#fcfdfe] p-5 space-y-4">
-                          <div className="rounded-xl border border-[#cbe0ee] bg-[#f4faff] p-4">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-[#145c91]">
-                              Author Controls: Advance to Next Stage
-                            </h4>
-                            <p className="mt-1 text-xs text-[#526a84]">
-                              As the author, you can authorize and proceed this application to the next step. When you click, the user will immediately see the updated stage on their tracking screen, and the Excel sheet will update automatically.
-                            </p>
+                        <div className="bg-[#fcfdfe] p-5 space-y-5 border-t border-[#edf2f6]">
+                          {/* Document Verification & Scrutiny Section */}
+                          <div className="rounded-2xl border border-[#d2e2ec] bg-white p-5 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#edf2f6] pb-3">
+                              <div>
+                                <h4 className="text-sm font-bold text-[#14283e] flex items-center gap-2">
+                                  <FileCheck size={18} className="text-[#145c91]" />
+                                  Citizen Document Scrutiny
+                                  {appDossier?.document_summary && (
+                                    <span
+                                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                                        appDossier.document_summary.is_complete
+                                          ? "bg-[#e5f7ed] text-[#1e824c]"
+                                          : "bg-[#fef3dd] text-[#b45309]"
+                                      }`}
+                                    >
+                                      {appDossier.document_summary.verified_required} / {appDossier.document_summary.total_required} Required Verified
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-xs text-[#63778a] mt-0.5">
+                                  Review citizen's uploaded documents. Verify each requirement or reject with reasons.
+                                </p>
+                              </div>
 
-                            {/* Action Buttons based on current stage */}
-                            <div className="mt-3 flex flex-wrap gap-2.5">
+                              <button
+                                onClick={() => fetchApplicationDossier(app.application_id)}
+                                disabled={dossierLoading}
+                                className="inline-flex items-center gap-1 text-xs font-bold text-[#145c91] hover:underline"
+                              >
+                                <RefreshCw size={12} className={dossierLoading ? "animate-spin" : ""} />
+                                Refresh Docs
+                              </button>
+                            </div>
+
+                            {/* Completeness Alert Banner */}
+                            {appDossier?.document_summary && (
+                              <div
+                                className={`mt-3.5 rounded-xl border p-3.5 text-xs ${
+                                  appDossier.document_summary.is_complete
+                                    ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]"
+                                    : "border-[#fed7aa] bg-[#fffaf0] text-[#9a3412]"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {appDossier.document_summary.is_complete ? (
+                                    <>
+                                      <CheckCircle2 size={16} className="text-[#16a34a] shrink-0" />
+                                      <span className="font-bold">
+                                        All Required Documents Verified (100% Complete). This application is authorized to proceed to Stage 3: SCA Review.
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertTriangle size={16} className="text-[#ea580c] shrink-0" />
+                                      <span>
+                                        <strong>Completeness Gate Active:</strong>{" "}
+                                        {appDossier.document_summary.total_required - appDossier.document_summary.verified_required} required document(s) pending verification. Advancement to SCA Review is locked until all required documents are marked VERIFIED.
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Documents Table */}
+                            {dossierLoading && !appDossier ? (
+                              <div className="flex justify-center py-6">
+                                <Loader2 size={22} className="animate-spin text-[#145c91]" />
+                              </div>
+                            ) : (
+                              <div className="mt-4 overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr className="border-b border-[#e2eaf0] bg-[#f8fbfe] text-[11px] font-bold uppercase text-[#718596]">
+                                      <th className="py-2.5 px-3">Document Requirement</th>
+                                      <th className="py-2.5 px-3">Type</th>
+                                      <th className="py-2.5 px-3">Uploaded File</th>
+                                      <th className="py-2.5 px-3">Current Status</th>
+                                      <th className="py-2.5 px-3 text-right">Scrutiny Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#edf2f6]">
+                                    {(appDossier?.documents || []).map((doc) => (
+                                      <tr key={doc.document_id} className="hover:bg-[#fbfdfe]">
+                                        <td className="py-3 px-3">
+                                          <p className="font-semibold text-[#172a43]">{doc.document_name}</p>
+                                          <p className="text-[10px] text-[#718596] font-mono">{doc.document_id}</p>
+                                          {doc.rejection_reason && (
+                                            <p className="mt-1 text-[11px] text-[#b91c1c] bg-[#fef2f2] p-1.5 rounded">
+                                              <strong>Rejected Reason:</strong> {doc.rejection_reason}
+                                            </p>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3">
+                                          {doc.required ? (
+                                            <span className="rounded bg-[#fee2e2] px-2 py-0.5 text-[10px] font-bold text-[#b91c1c]">
+                                              MANDATORY
+                                            </span>
+                                          ) : (
+                                            <span className="rounded bg-[#f1f5f9] px-2 py-0.5 text-[10px] font-semibold text-[#64748b]">
+                                              OPTIONAL
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3">
+                                          {doc.file_name ? (
+                                            <div>
+                                              <p className="font-medium text-[#172a43] truncate max-w-[160px]" title={doc.file_name}>
+                                                {doc.file_name}
+                                              </p>
+                                              <p className="text-[10px] text-[#8fa0b0]">
+                                                {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : ""}
+                                                {doc.uploaded_at ? ` · ${doc.uploaded_at.split(" ")[0]}` : ""}
+                                              </p>
+                                              <a
+                                                href={`${API_BASE_URL}${doc.view_url}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#145c91] hover:underline"
+                                              >
+                                                <Eye size={12} />
+                                                View Document
+                                              </a>
+                                            </div>
+                                          ) : (
+                                            <span className="italic text-[#94a3b8]">Not uploaded yet</span>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3">
+                                          <span
+                                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                              doc.status === "VERIFIED"
+                                                ? "bg-[#e5f7ed] text-[#1e824c]"
+                                                : doc.status === "REJECTED"
+                                                ? "bg-[#fee2e2] text-[#b91c1c]"
+                                                : doc.status === "UNDER_VERIFICATION" || doc.status === "UPLOADED"
+                                                ? "bg-[#fef3dd] text-[#b45309]"
+                                                : "bg-[#f1f5f9] text-[#64748b]"
+                                            }`}
+                                          >
+                                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                            {doc.status}
+                                          </span>
+                                        </td>
+                                        <td className="py-3 px-3 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            {doc.status !== "VERIFIED" && (
+                                              <button
+                                                onClick={() => handleVerifyDocument(doc.document_id, doc.document_name)}
+                                                disabled={actionLoading}
+                                                className="rounded-lg bg-[#16a34a] px-2.5 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-[#15803d] transition"
+                                                title="Mark this document verified"
+                                              >
+                                                Verify
+                                              </button>
+                                            )}
+                                            {doc.status !== "REJECTED" && (
+                                              <button
+                                                onClick={() => {
+                                                  setRejectPromptDocId(doc.document_id);
+                                                  setRejectReasonInput("");
+                                                }}
+                                                disabled={actionLoading}
+                                                className="rounded-lg border border-[#fca5a5] bg-[#fff5f5] px-2.5 py-1 text-[11px] font-bold text-[#b91c1c] hover:bg-[#fee2e2] transition"
+                                                title="Reject document with reason"
+                                              >
+                                                Reject
+                                              </button>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            {/* Rejection Prompt Modal inline */}
+                            {rejectPromptDocId && (
+                              <div className="mt-4 rounded-xl border border-[#fca5a5] bg-[#fef2f2] p-4">
+                                <h5 className="text-xs font-bold text-[#991b1b]">
+                                  Specify Reason for Rejection:
+                                </h5>
+                                <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                                  <input
+                                    value={rejectReasonInput}
+                                    onChange={(e) => setRejectReasonInput(e.target.value)}
+                                    placeholder="e.g. Income certificate is older than 6 months. Please re-upload latest certificate."
+                                    className="flex-1 rounded-lg border border-[#fca5a5] bg-white px-3 py-2 text-xs text-[#172a43] outline-none"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        const d = (appDossier?.documents || []).find((x) => x.document_id === rejectPromptDocId);
+                                        handleRejectDocument(rejectPromptDocId, d?.document_name || rejectPromptDocId);
+                                      }}
+                                      disabled={actionLoading}
+                                      className="rounded-lg bg-[#b91c1c] px-3 py-2 text-xs font-bold text-white hover:bg-[#991b1b]"
+                                    >
+                                      Confirm Rejection
+                                    </button>
+                                    <button
+                                      onClick={() => setRejectPromptDocId(null)}
+                                      className="rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs font-bold text-[#4b5563]"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Stage Transition Control Center */}
+                          <div className="rounded-2xl border border-[#cbe0ee] bg-[#f4faff] p-5 space-y-4">
+                            <div>
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-[#145c91]">
+                                Author Stage Transition Controls
+                              </h4>
+                              <p className="mt-0.5 text-xs text-[#526a84]">
+                                Advance lifecycle stages as scrutiny progresses. All transitions log immutable audit events and sync live to Excel.
+                              </p>
+                            </div>
+
+                            {/* Stage Action Controllers */}
+                            <div className="flex flex-wrap items-center gap-3">
+                              {/* Stage 1 -> 2: Proceed to Document Verification */}
                               {stageIdx === 0 && (
                                 <button
                                   onClick={() =>
                                     handleAdvanceStage(
                                       app,
                                       1,
-                                      "Author approved initial application. Authorized for Document Verification at District Scrutiny Cell."
+                                      "Author authorized application for Document Verification at District Scrutiny Cell."
                                     )
                                   }
                                   disabled={actionLoading}
                                   className="inline-flex items-center gap-1.5 rounded-xl bg-[#d97706] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#b45309] transition"
                                 >
                                   <CheckCircle2 size={15} />
-                                  1. Allow / Proceed to Document Verification
+                                  Proceed to Document Verification (Stage 2)
                                 </button>
                               )}
 
+                              {/* Stage 2 -> 3: Proceed to SCA Review (Completeness Gatekeeper) */}
                               {stageIdx === 1 && (
                                 <button
-                                  onClick={() =>
-                                    handleAdvanceStage(
-                                      app,
-                                      2,
-                                      "Documents successfully verified by Scrutiny Cell. Forwarded to State Channelizing Agency (SCA) for quota allocation."
-                                    )
+                                  onClick={() => handleProceedToSca(app)}
+                                  disabled={actionLoading || !appDossier?.document_summary?.is_complete}
+                                  className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-sm transition ${
+                                    appDossier?.document_summary?.is_complete
+                                      ? "bg-[#145c91] hover:bg-[#104d7b] cursor-pointer"
+                                      : "bg-[#94a3b8] cursor-not-allowed opacity-75"
+                                  }`}
+                                  title={
+                                    !appDossier?.document_summary?.is_complete
+                                      ? "Locked: 100% of required documents must be VERIFIED first"
+                                      : "Proceed to SCA Review"
                                   }
-                                  disabled={actionLoading}
-                                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#145c91] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#104d7b] transition"
                                 >
                                   <CheckCircle2 size={15} />
-                                  2. Verify Documents & Proceed to SCA Review
+                                  Proceed to SCA Review (Stage 3)
                                 </button>
                               )}
 
+                              {/* Stage 3 -> 4: SCA Endorsement to Bank */}
                               {stageIdx === 2 && (
                                 <button
-                                  onClick={() =>
-                                    handleAdvanceStage(
-                                      app,
-                                      3,
-                                      "SCA committee has endorsed quota allotment. Forwarded to nominated bank for credit appraisal and sanction."
-                                    )
-                                  }
+                                  onClick={() => handleScaReview(app)}
                                   disabled={actionLoading}
                                   className="inline-flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#6d28d9] transition"
                                 >
                                   <CheckCircle2 size={15} />
-                                  3. Approve SCA Review & Proceed to Bank Sanction
+                                  Endorse SCA Quota & Forward to Bank (Stage 4)
                                 </button>
                               )}
 
+                              {/* Stage 4 -> 5: Bank Sanction with Loan Amount */}
                               {stageIdx === 3 && (
-                                <button
-                                  onClick={() =>
-                                    handleAdvanceStage(
-                                      app,
-                                      4,
-                                      "Bank credit sanction letter issued. Direct Benefit Transfer (DBT) subsidy credit authorized to Aadhaar-linked account."
-                                    )
-                                  }
-                                  disabled={actionLoading}
-                                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#15803d] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#166534] transition"
-                                >
-                                  <CheckCircle2 size={15} />
-                                  4. Grant Sanction & Authorize DBT Disbursement
-                                </button>
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                  <input
+                                    value={sanctionAmountInput}
+                                    onChange={(e) => setSanctionAmountInput(e.target.value)}
+                                    placeholder={`Sanction Amount (Default: ${app.loan_amount || "₹ 1,50,000"})`}
+                                    className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs text-[#172a43] outline-none"
+                                  />
+                                  <button
+                                    onClick={() => handleBankSanction(app)}
+                                    disabled={actionLoading}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#15803d] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#166534] transition shrink-0"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                    Issue Bank Sanction Order
+                                  </button>
+                                </div>
                               )}
 
-                              {stageIdx === 4 && (
+                              {/* Stage 5: DBT Disbursement with UTR */}
+                              {stageIdx === 4 && app.status_code !== "DISBURSED" && (
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                  <input
+                                    value={disbursementRefInput}
+                                    onChange={(e) => setDisbursementRefInput(e.target.value)}
+                                    placeholder="Enter Bank UTR Ref (e.g. UTR202609001)"
+                                    className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs text-[#172a43] outline-none"
+                                  />
+                                  <button
+                                    onClick={() => handleDisbursement(app)}
+                                    disabled={actionLoading}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#065f46] transition shrink-0"
+                                  >
+                                    <CheckCircle2 size={15} />
+                                    Confirm DBT Disbursement (Final Stage)
+                                  </button>
+                                </div>
+                              )}
+
+                              {stageIdx === 4 && app.status_code === "DISBURSED" && (
                                 <span className="inline-flex items-center gap-1.5 rounded-xl bg-[#e5f7ed] px-4 py-2 text-xs font-bold text-[#1e824c]">
                                   <CheckCircle2 size={15} />
-                                  Application Fully Disbursed & Completed!
+                                  Application Fully Disbursed & Completed! Ref: {app.disbursement_ref || "Recorded"}
                                 </span>
                               )}
                             </div>
 
-                            {/* Custom Remarks Input */}
-                            <div className="mt-3">
+                            {/* Author Remarks Input */}
+                            <div>
                               <label className="text-[11px] font-bold text-[#455c72]">
-                                Optional Author Remarks (Will be shown to applicant and saved in Excel):
+                                Official Remarks for Applicant & Timeline:
                               </label>
-                              <div className="mt-1 flex gap-2">
-                                <input
-                                  value={authorRemarks}
-                                  onChange={(e) => setAuthorRemarks(e.target.value)}
-                                  placeholder="e.g. All KYC documents confirmed. Site visit scheduled on 08 Sep."
-                                  className="flex-1 rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs text-[#172a43] outline-none"
-                                />
-                              </div>
+                              <input
+                                value={authorRemarks}
+                                onChange={(e) => setAuthorRemarks(e.target.value)}
+                                placeholder="e.g. All KYC verified. Endorsed under district quota."
+                                className="mt-1 w-full rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs text-[#172a43] outline-none"
+                              />
                             </div>
                           </div>
+
+                          {/* Audit Trail Section */}
+                          {appDossier?.audit_logs && appDossier.audit_logs.length > 0 && (
+                            <div className="rounded-2xl border border-[#e2eaf0] bg-white p-4">
+                              <h5 className="text-xs font-bold uppercase tracking-wider text-[#718596] mb-2.5">
+                                Immutable Audit Trail ({appDossier.audit_logs.length} Events)
+                              </h5>
+                              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                {appDossier.audit_logs.map((log) => (
+                                  <div key={log.id} className="flex items-start justify-between gap-3 text-[11px] bg-[#fbfdfe] p-2 rounded-lg border border-[#f0f4f8]">
+                                    <div>
+                                      <span className="font-bold text-[#145c91]">{log.action}</span>
+                                      <span className="text-[#8fa0b0] font-mono"> · {log.role}</span>
+                                      <p className="text-[#475569] mt-0.5">{log.remarks}</p>
+                                    </div>
+                                    <span className="text-[#94a3b8] shrink-0 font-mono text-[10px]">{log.created_at}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Details Summary */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#52657b]">

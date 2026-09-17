@@ -18,6 +18,9 @@ import {
   ExternalLink,
   RotateCcw,
   Sparkles,
+  FileCheck,
+  Upload,
+  Ban,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -48,6 +51,35 @@ export default function TrackApplication({
       return [];
     }
   });
+
+  // Live document checklist & audit trail for tracked application
+  const [appDocuments, setAppDocuments] = useState([]);
+  const [appDocSummary, setAppDocSummary] = useState(null);
+  const [appAuditLogs, setAppAuditLogs] = useState([]);
+
+  const loadApplicationDetails = (appId) => {
+    if (!appId) return;
+    // Load documents
+    fetch(`${API_BASE_URL}/api/applications/${encodeURIComponent(appId)}/documents`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.documents) {
+          setAppDocuments(data.documents);
+          setAppDocSummary(data.summary);
+        }
+      })
+      .catch(() => {});
+
+    // Load audit trail
+    fetch(`${API_BASE_URL}/api/applications/${encodeURIComponent(appId)}/audit-log`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.audit_logs) {
+          setAppAuditLogs(data.audit_logs);
+        }
+      })
+      .catch(() => {});
+  };
 
   // Fetch real user applications from SQLite if logged in
   useEffect(() => {
@@ -117,6 +149,7 @@ export default function TrackApplication({
         if (data?.application) {
           setStatus(data.application);
           saveRecent(data.application.application_id);
+          loadApplicationDetails(data.application.application_id);
           setLoading(false);
           // Scroll down to tracker
           setTimeout(() => {
@@ -193,6 +226,7 @@ export default function TrackApplication({
         if (data?.application) {
           setStatus(data.application);
           saveRecent(data.application.application_id);
+          loadApplicationDetails(data.application.application_id);
           setTimeout(() => {
             const el = document.getElementById("application-tracker-view");
             if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -850,6 +884,121 @@ export default function TrackApplication({
                 </div>
               </div>
             </div>
+
+            {/* Live Document Verification Checklist Status */}
+            <div className="rounded-2xl border border-[#d5e1e8] bg-white p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#edf2f6] pb-4">
+                <div>
+                  <h4 className="font-serif text-base font-bold text-[#14283e] flex items-center gap-2">
+                    <FileCheck size={18} className="text-[#145c91]" />
+                    Document Scrutiny Status
+                    {appDocSummary && (
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                          appDocSummary.is_complete
+                            ? "bg-[#e5f7ed] text-[#1e824c]"
+                            : "bg-[#fef3dd] text-[#b45309]"
+                        }`}
+                      >
+                        {appDocSummary.verified_required} / {appDocSummary.total_required} Required Verified
+                      </span>
+                    )}
+                  </h4>
+                  <p className="mt-0.5 text-xs text-[#63778a]">
+                    Stage 2 cannot proceed to Stage 3 (SCA Review) until 100% of required documents are marked VERIFIED.
+                  </p>
+                </div>
+
+                {onNavigate && (
+                  <button
+                    onClick={() => onNavigate("documents")}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#145c91] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#104d7b] transition"
+                  >
+                    <Upload size={13} />
+                    Upload / Manage Documents
+                  </button>
+                )}
+              </div>
+
+              {appDocuments.length > 0 ? (
+                <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                  {appDocuments.map((doc) => (
+                    <div
+                      key={doc.document_id}
+                      className={`flex items-start justify-between gap-2 rounded-xl border p-3 text-xs transition ${
+                        doc.status === "VERIFIED"
+                          ? "border-[#bbf7d0] bg-[#f9fefb]"
+                          : doc.status === "REJECTED"
+                          ? "border-[#fecaca] bg-[#fffbfb]"
+                          : doc.status === "UNDER_VERIFICATION"
+                          ? "border-[#fed7aa] bg-[#fffdfa]"
+                          : "border-[#e2ebf1] bg-[#fbfdfe]"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-[#172a43]">{doc.document_name}</p>
+                        {doc.file_name && (
+                          <p className="text-[11px] text-[#5b7185] mt-0.5">
+                            File: {doc.file_name}
+                          </p>
+                        )}
+                        {doc.rejection_reason && (
+                          <p className="mt-1 text-[11px] text-[#b91c1c] font-medium bg-[#fee2e2] p-1 rounded">
+                            Deficiency: {doc.rejection_reason}
+                          </p>
+                        )}
+                      </div>
+
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          doc.status === "VERIFIED"
+                            ? "bg-[#e5f7ed] text-[#1e824c]"
+                            : doc.status === "REJECTED"
+                            ? "bg-[#fee2e2] text-[#b91c1c]"
+                            : doc.status === "UNDER_VERIFICATION"
+                            ? "bg-[#fef3dd] text-[#b45309]"
+                            : "bg-[#f1f5f9] text-[#64748b]"
+                        }`}
+                      >
+                        {doc.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 text-center py-4 text-xs text-[#718596]">
+                  Loading document checklist for this application...
+                </div>
+              )}
+            </div>
+
+            {/* Application Audit Log Trail */}
+            {appAuditLogs.length > 0 && (
+              <div className="rounded-2xl border border-[#d5e1e8] bg-white p-6 shadow-sm">
+                <h4 className="font-serif text-base font-bold text-[#14283e] mb-3">
+                  Official Verification Log ({appAuditLogs.length} Records)
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {appAuditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-start justify-between gap-3 text-xs bg-[#f8fbfe] p-3 rounded-xl border border-[#edf2f6]"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#145c91]">{log.action}</span>
+                          <span className="text-[10px] font-mono text-[#8fa0b0]">By {log.role}</span>
+                        </div>
+                        <p className="text-xs text-[#475569] mt-0.5">{log.remarks}</p>
+                      </div>
+                      <span className="text-[10px] text-[#94a3b8] font-mono shrink-0">
+                        {log.created_at}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Channel Partner & Support Card */}
             {status.channel_partner && (

@@ -14,6 +14,10 @@ import {
   Calculator,
   Bot,
   LogIn,
+  Upload,
+  Eye,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { FeaturePageShell } from "./common/CommonUI";
 import { useTranslation } from "../i18n";
@@ -73,30 +77,115 @@ export default function DocumentsPage({
     }
   });
 
-  // Fetch document verification status from SQLite if logged in
+  // User applications & Live Document Scrutiny States
+  const [userApplications, setUserApplications] = useState([]);
+  const [selectedAppId, setSelectedAppId] = useState("");
+  const [liveDocuments, setLiveDocuments] = useState([]);
+  const [docSummary, setDocSummary] = useState(null);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploadLoadingDoc, setUploadLoadingDoc] = useState(null);
+  const [uploadSuccess, setUploadSuccess] = useState("");
+  const [uploadError, setUploadError] = useState("");
+
+  // Load user applications to select for document upload
   useEffect(() => {
     const token = localStorage.getItem("scheme_saathi_token");
     if (!token) return;
 
-    fetch(`${API_BASE_URL}/api/documents/status`, {
+    fetch(`${API_BASE_URL}/api/applications/my-applications`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.documents) {
-          setCheckedDocs((prev) => {
-            const merged = { ...prev };
-            Object.keys(data.documents).forEach((key) => {
-              if (data.documents[key]?.status === "verified") {
-                merged[key] = true;
-              }
-            });
-            return merged;
-          });
+        if (data?.applications?.length > 0) {
+          setUserApplications(data.applications);
+          setSelectedAppId(data.applications[0].application_id);
         }
       })
       .catch(() => {});
   }, [isLoggedIn]);
+
+  // Fetch live documents for selected application
+  const fetchLiveDocuments = (appId) => {
+    if (!appId) return;
+    setDocsLoading(true);
+    fetch(`${API_BASE_URL}/api/applications/${encodeURIComponent(appId)}/documents`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.documents) {
+          setLiveDocuments(data.documents);
+          setDocSummary(data.summary);
+          // Sync checkmarks
+          setCheckedDocs((prev) => {
+            const next = { ...prev };
+            data.documents.forEach((d) => {
+              if (d.status === "VERIFIED" || d.status === "UNDER_VERIFICATION") {
+                next[d.document_type] = true;
+              }
+            });
+            return next;
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDocsLoading(false));
+  };
+
+  useEffect(() => {
+    if (selectedAppId) {
+      fetchLiveDocuments(selectedAppId);
+    }
+  }, [selectedAppId]);
+
+  // Handle document file upload (PDF/JPG/PNG up to 5MB)
+  const handleFileUpload = async (docType, file) => {
+    if (!selectedAppId) {
+      setUploadError("Please select an active application to upload documents for.");
+      return;
+    }
+    if (!file) return;
+
+    // Check size limit: 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError(`File '${file.name}' exceeds the 5 MB limit. Please select a smaller file.`);
+      return;
+    }
+
+    setUploadLoadingDoc(docType);
+    setUploadError("");
+    setUploadSuccess("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const token = localStorage.getItem("scheme_saathi_token");
+    const headers = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/applications/${encodeURIComponent(selectedAppId)}/documents/${encodeURIComponent(docType)}/upload`,
+        {
+          method: "POST",
+          headers,
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setUploadSuccess(`Document '${file.name}' uploaded successfully and submitted for scrutiny!`);
+        fetchLiveDocuments(selectedAppId);
+      } else {
+        const err = await res.json().catch(() => null);
+        setUploadError(err?.detail || "Failed to upload document. Please try again.");
+      }
+    } catch {
+      setUploadError("Error connecting to server. Please check your internet connection.");
+    } finally {
+      setUploadLoadingDoc(null);
+    }
+  };
 
   // Toggle document checked status and persist in localStorage + SQLite
   const toggleDoc = (docId) => {
@@ -264,6 +353,175 @@ export default function DocumentsPage({
             <LogIn size={14} />
             <span>{t("Sign In")}</span>
           </button>
+        </div>
+      )}
+
+      {/* Application Document Upload & Live Verification Section */}
+      {userApplications.length > 0 && (
+        <div className="mb-8 rounded-2xl border border-[#b8ddf4] bg-white p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#edf2f6] pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e8f3fb] text-[#145c91]">
+                  <Upload size={16} />
+                </span>
+                <h3 className="font-serif text-lg font-bold text-[#14283e]">
+                  Upload Documents for Active Application
+                </h3>
+              </div>
+              <p className="mt-1 text-xs text-[#526a84]">
+                Upload required certificates (PDF, JPG, PNG up to 5 MB) for scrutiny by the District Verification Cell.
+              </p>
+            </div>
+
+            {/* Application Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[#667d91] shrink-0">Application:</span>
+              <select
+                value={selectedAppId}
+                onChange={(e) => setSelectedAppId(e.target.value)}
+                className="rounded-xl border border-[#cfdbe3] bg-white px-3 py-2 text-xs font-bold text-[#145c91] outline-none"
+              >
+                {userApplications.map((app) => (
+                  <option key={app.application_id} value={app.application_id}>
+                    {app.application_id} ({app.scheme_name || app.scheme_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Feedback Messages */}
+          {uploadSuccess && (
+            <div className="mt-4 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-3 text-xs font-semibold text-[#166534] flex items-center justify-between">
+              <span>✅ {uploadSuccess}</span>
+              <button onClick={() => setUploadSuccess("")} className="text-gray-400 hover:text-gray-600 text-sm font-bold">×</button>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="mt-4 rounded-xl border border-[#fecaca] bg-[#fef2f2] p-3 text-xs font-semibold text-[#b91c1c] flex items-center justify-between">
+              <span>⚠️ {uploadError}</span>
+              <button onClick={() => setUploadError("")} className="text-gray-400 hover:text-gray-600 text-sm font-bold">×</button>
+            </div>
+          )}
+
+          {/* Completeness Summary */}
+          {docSummary && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+              <div className="rounded-xl bg-[#f8fbfe] border border-[#e2eaf0] p-3">
+                <span className="text-[10px] uppercase font-bold text-[#718596]">Required</span>
+                <p className="font-serif text-lg font-bold text-[#14283e] mt-0.5">{docSummary.total_required}</p>
+              </div>
+              <div className="rounded-xl bg-[#f0fdf4] border border-[#bbf7d0] p-3">
+                <span className="text-[10px] uppercase font-bold text-[#15803d]">Verified</span>
+                <p className="font-serif text-lg font-bold text-[#15803d] mt-0.5">{docSummary.verified_required}</p>
+              </div>
+              <div className="rounded-xl bg-[#fffaf0] border border-[#fed7aa] p-3">
+                <span className="text-[10px] uppercase font-bold text-[#c2410c]">Pending Review</span>
+                <p className="font-serif text-lg font-bold text-[#c2410c] mt-0.5">{docSummary.under_verification_count}</p>
+              </div>
+              <div className="rounded-xl bg-[#fef2f2] border border-[#fecaca] p-3">
+                <span className="text-[10px] uppercase font-bold text-[#b91c1c]">Rejected</span>
+                <p className="font-serif text-lg font-bold text-[#b91c1c] mt-0.5">{docSummary.rejected_count}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Live Upload List */}
+          {docsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-[#145c91]" />
+            </div>
+          ) : liveDocuments.length > 0 ? (
+            <div className="mt-5 space-y-3">
+              {liveDocuments.map((doc) => (
+                <div
+                  key={doc.document_id}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border transition ${
+                    doc.status === "VERIFIED"
+                      ? "border-[#bbf7d0] bg-[#f9fefb]"
+                      : doc.status === "REJECTED"
+                      ? "border-[#fecaca] bg-[#fffbfb]"
+                      : doc.status === "UNDER_VERIFICATION"
+                      ? "border-[#fed7aa] bg-[#fffdfa]"
+                      : "border-[#e2ebf1] bg-[#fbfdfe]"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#172a43]">{doc.document_name}</span>
+                      {doc.required ? (
+                        <span className="rounded bg-[#fee2e2] px-2 py-0.5 text-[9px] font-bold text-[#b91c1c]">MANDATORY</span>
+                      ) : (
+                        <span className="rounded bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-semibold text-[#64748b]">OPTIONAL</span>
+                      )}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          doc.status === "VERIFIED"
+                            ? "bg-[#e5f7ed] text-[#1e824c]"
+                            : doc.status === "REJECTED"
+                            ? "bg-[#fee2e2] text-[#b91c1c]"
+                            : doc.status === "UNDER_VERIFICATION"
+                            ? "bg-[#fef3dd] text-[#b45309]"
+                            : "bg-[#f1f5f9] text-[#64748b]"
+                        }`}
+                      >
+                        {doc.status}
+                      </span>
+                    </div>
+
+                    {doc.file_name && (
+                      <p className="text-[11px] text-[#5b7185]">
+                        Uploaded: <strong>{doc.file_name}</strong> ({Math.round((doc.file_size || 0) / 1024)} KB)
+                        {doc.verified_by && ` · Verified by ${doc.verified_by}`}
+                      </p>
+                    )}
+
+                    {doc.rejection_reason && (
+                      <p className="text-[11px] font-medium text-[#b91c1c] bg-[#fee2e2] p-1.5 rounded">
+                        <strong>Correction Required:</strong> {doc.rejection_reason}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {doc.view_url && (
+                      <a
+                        href={`${API_BASE_URL}${doc.view_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#cfdbe3] bg-white px-3 py-1.5 text-xs font-bold text-[#2d4965] hover:bg-[#f2f6fa]"
+                      >
+                        <Eye size={12} />
+                        View
+                      </a>
+                    )}
+
+                    {/* File Upload Input */}
+                    <label className="inline-flex items-center gap-1.5 rounded-lg bg-[#145c91] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#104d7b] transition cursor-pointer">
+                      {uploadLoadingDoc === doc.document_type ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Upload size={13} />
+                      )}
+                      <span>{doc.file_name ? "Re-upload" : "Upload File"}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleFileUpload(doc.document_type, e.target.files[0]);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 

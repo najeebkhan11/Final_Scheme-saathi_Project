@@ -133,6 +133,16 @@ def row_to_application_dict(row: dict) -> dict[str, Any]:
         "action_required": row.get("action_required"),
         "official_note": row.get("official_note") or "Your application is under scrutiny by the designated Channel Partner.",
         "timeline": timeline,
+        "submitted_at": str(row["submitted_at"]) if row.get("submitted_at") else None,
+        "document_verified_at": str(row["document_verified_at"]) if row.get("document_verified_at") else None,
+        "sca_reviewed_at": str(row["sca_reviewed_at"]) if row.get("sca_reviewed_at") else None,
+        "sanctioned_at": str(row["sanctioned_at"]) if row.get("sanctioned_at") else None,
+        "disbursed_at": str(row["disbursed_at"]) if row.get("disbursed_at") else None,
+        "sanction_amount": row.get("sanction_amount"),
+        "disbursement_amount": row.get("disbursement_amount"),
+        "disbursement_ref": row.get("disbursement_ref"),
+        "rejection_reason": row.get("rejection_reason"),
+        "rejection_stage": row.get("rejection_stage"),
     }
 
 
@@ -316,6 +326,23 @@ def generate_ai_application_dossier(query_val: str, applicant_name_hint: Optiona
             ),
         )
 
+        # Provision document requirements for MFS
+        try:
+            from routes.documents import provision_application_documents
+            provision_application_documents(conn, app_id, "MFS", user_id)
+            from services.audit import log_application_action
+            log_application_action(
+                application_id=app_id,
+                action="APPLICATION_CREATED",
+                role="USER",
+                user_id=user_id,
+                new_status="IN_PROGRESS",
+                remarks=f"Application journey generated and recorded under Reference #{app_id}.",
+                conn=conn,
+            )
+        except Exception:
+            pass
+
     # Sync into Excel
     try:
         from services.excel_exporter import sync_all_admin_excel
@@ -447,6 +474,23 @@ def submit_application(
                 timeline_json,
             ),
         )
+
+        # Provision required documents for this scheme
+        try:
+            from routes.documents import provision_application_documents
+            provision_application_documents(conn, app_id, request.scheme_id, user_id)
+            from services.audit import log_application_action
+            log_application_action(
+                application_id=app_id,
+                action="APPLICATION_SUBMITTED",
+                role="USER",
+                user_id=user_id,
+                new_status="SUBMITTED",
+                remarks=f"Application registered for {request.scheme_name} ({request.scheme_id}). Documents checklist initialized.",
+                conn=conn,
+            )
+        except Exception:
+            pass
 
     # Return constructed application
     with get_db() as conn:
@@ -643,4 +687,44 @@ def search_applications(req: ApplicationSearchRequest):
         "status": "not_found",
         "found": False,
         "detail": "Please check your Application ID, mobile number, or name.",
+    }
+
+
+@router.get("/{application_id}/audit-log")
+def get_application_audit_log(application_id: str):
+    """
+    Returns the immutable audit log history for an application.
+    """
+    app_id = application_id.strip()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM application_audit_logs
+            WHERE lower(application_id) = lower(?)
+            ORDER BY timestamp DESC, log_id DESC
+            """,
+            (app_id,),
+        )
+        rows = cursor.fetchall()
+
+    logs = [
+        {
+            "id": r["log_id"],
+            "application_id": r["application_id"],
+            "action": r["action"],
+            "role": r["role"],
+            "old_status": r["old_status"],
+            "new_status": r["new_status"],
+            "remarks": r["remarks"],
+            "created_at": str(r["timestamp"]),
+        }
+        for r in rows
+    ]
+
+    return {
+        "status": "success",
+        "application_id": app_id,
+        "count": len(logs),
+        "audit_logs": logs,
     }

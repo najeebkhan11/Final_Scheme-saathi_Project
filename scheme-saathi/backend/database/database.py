@@ -197,15 +197,28 @@ def init_db():
             );
             """
         )
-        # Migrate existing table if mobile_masked or mobile is missing
-        try:
-            conn.execute("ALTER TABLE user_applications ADD COLUMN mobile_masked TEXT")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE user_applications ADD COLUMN mobile TEXT")
-        except Exception:
-            pass
+        # Migrate existing user_applications table if columns are missing
+        for col_def in [
+            "mobile_masked TEXT",
+            "mobile TEXT",
+            "partner_id TEXT",
+            "partner_name TEXT",
+            "submitted_at TIMESTAMP",
+            "document_verified_at TIMESTAMP",
+            "sca_reviewed_at TIMESTAMP",
+            "sanctioned_at TIMESTAMP",
+            "disbursed_at TIMESTAMP",
+            "sanction_amount TEXT",
+            "disbursement_amount TEXT",
+            "disbursement_ref TEXT",
+            "rejection_reason TEXT",
+            "rejection_stage TEXT",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE user_applications ADD COLUMN {col_def}")
+            except Exception:
+                pass
+
         # Add full_name column if not exists (migration for older DBs)
         try:
             conn.execute("ALTER TABLE user_profiles ADD COLUMN full_name TEXT")
@@ -222,27 +235,129 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_user_applications_user_id ON user_applications(user_id);
             """
         )
+
+        # ----------------------------------------------------
+        # SCHEME DOCUMENTS TABLE (Configurable Requirements)
+        # ----------------------------------------------------
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS user_documents (
+            CREATE TABLE IF NOT EXISTS scheme_documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                doc_type TEXT NOT NULL,
-                doc_name TEXT NOT NULL,
-                status TEXT DEFAULT 'verified',
-                verified_via TEXT DEFAULT 'DigiLocker',
-                verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                UNIQUE(user_id, doc_type)
+                scheme_id TEXT NOT NULL,
+                document_type TEXT NOT NULL,
+                document_name TEXT NOT NULL,
+                required BOOLEAN DEFAULT 1,
+                category TEXT DEFAULT 'general',
+                description TEXT,
+                allowed_file_types TEXT DEFAULT 'pdf,jpg,jpeg,png',
+                max_file_size INTEGER DEFAULT 5242880,
+                active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(scheme_id, document_type)
             );
             """
         )
         conn.execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_scheme_documents_scheme_id ON scheme_documents(scheme_id);
+            """
+        )
+
+        # ----------------------------------------------------
+        # USER DOCUMENTS TABLE (Citizen Uploads & Verification)
+        # ----------------------------------------------------
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id TEXT UNIQUE,
+                application_id TEXT,
+                user_id INTEGER,
+                doc_type TEXT NOT NULL,
+                doc_name TEXT NOT NULL,
+                required BOOLEAN DEFAULT 1,
+                file_path TEXT,
+                file_url TEXT,
+                file_name TEXT,
+                file_size INTEGER,
+                mime_type TEXT,
+                status TEXT DEFAULT 'MISSING',
+                verified_via TEXT,
+                uploaded_at TIMESTAMP,
+                verified_at TIMESTAMP,
+                verified_by TEXT,
+                rejection_reason TEXT,
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+
+        # Migrations for existing user_documents installations
+        for col_def in [
+            "document_id TEXT",
+            "application_id TEXT",
+            "required BOOLEAN DEFAULT 1",
+            "file_path TEXT",
+            "file_url TEXT",
+            "file_name TEXT",
+            "file_size INTEGER",
+            "mime_type TEXT",
+            "uploaded_at TIMESTAMP",
+            "verified_by TEXT",
+            "rejection_reason TEXT",
+            "remarks TEXT",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE user_documents ADD COLUMN {col_def}")
+            except Exception:
+                pass
+
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_user_documents_user_id ON user_documents(user_id);
             """
         )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_documents_app_id ON user_documents(application_id);
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_documents_doc_id ON user_documents(document_id);
+            """
+        )
+
+        # ----------------------------------------------------
+        # APPLICATION AUDIT LOGS TABLE
+        # ----------------------------------------------------
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS application_audit_logs (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                application_id TEXT NOT NULL,
+                user_id INTEGER,
+                role TEXT NOT NULL,
+                action TEXT NOT NULL,
+                old_status TEXT,
+                new_status TEXT,
+                remarks TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_app_id ON application_audit_logs(application_id);
+            """
+        )
+
+        # ----------------------------------------------------
+        # SEED SCHEME DOCUMENTS
+        # ----------------------------------------------------
+        _seed_scheme_documents(conn)
 
         # Seed preset sample applications if table has no records
         cursor = conn.cursor()
@@ -405,6 +520,106 @@ def init_db():
                     )
             except Exception as e:
                 pass
+
+
+def _seed_scheme_documents(conn):
+    """Seed configurable scheme document requirements if table is empty."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM scheme_documents")
+        if cursor.fetchone()[0] > 0:
+            return
+
+        docs_to_seed = []
+
+        # Helper to add documents
+        def add(scheme_id, doc_type, name, req=True, cat="general", desc="", types="pdf,jpg,jpeg,png", size=5242880):
+            docs_to_seed.append((scheme_id, doc_type, name, 1 if req else 0, cat, desc, types, size, 1))
+
+        # --- Micro Finance Scheme (MFS) ---
+        add("MFS", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof for DigiLocker e-KYC authentication.")
+        add("MFS", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Competent revenue authority certificate confirming Scheduled Caste status.")
+        add("MFS", "income_certificate", "Annual Family Income Certificate (FY 2026-27)", True, "income_caste", "Proof that total family income is within NSFDC limits (<= ₹5,00,000 p.a.).")
+        add("MFS", "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Active individual bank account with IFSC code for Direct Benefit Transfer.")
+        add("MFS", "trade_proposal", "Micro-Enterprise / Trade Proposal Brief", True, "business", "1-2 page write-up outlining intended small business activity and sales forecast.")
+        add("MFS", "equipment_quotation", "Vendor Quotation / Equipment Cost Estimate", True, "business", "Itemized dealer quote for tools, machinery, livestock, or stock.")
+        add("MFS", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph with light background.")
+        add("MFS", "address_proof", "Secondary Residential Proof (Voter ID / Electricity Bill)", False, "kyc", "Required only if residing address differs from Aadhaar.")
+
+        # --- Aajeevika Micro-Finance Yojana (AMY) ---
+        add("AMY", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof.")
+        add("AMY", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Revenue authority certificate confirming Scheduled Caste category.")
+        add("AMY", "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Proof of family income within eligible ceiling.")
+        add("AMY", "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Active bank account for credit transfer.")
+        add("AMY", "trade_proposal", "Self-Employment Activity Declaration", True, "business", "Brief statement describing artisan, trading, or handicraft activity.")
+        add("AMY", "equipment_quotation", "Activity Cost Breakdown", True, "business", "Summary of raw materials, tools, or equipment needed.")
+        add("AMY", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph.")
+
+        # --- Term Loan (TL / TERM_LOAN) ---
+        for tl_id in ["TL", "TERM_LOAN"]:
+            add(tl_id, "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof for DigiLocker e-KYC.")
+            add(tl_id, "pan_card", "Permanent Account Number (PAN Card)", True, "kyc", "Mandatory for commercial term loans and bank credit appraisal.")
+            add(tl_id, "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Digital caste certificate issued by Tehsildar / SDO.")
+            add(tl_id, "income_certificate", "Annual Family Income Certificate (FY 2026-27)", True, "income_caste", "Proof of annual family income within ₹5,00,000 limit.")
+            add(tl_id, "bank_statement", "Bank Account Statement (Latest 6 Months)", True, "banking", "Demonstrates banking discipline and financial liquidity.")
+            add(tl_id, "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Aadhaar-seeded bank account for subsidy & loan release.")
+            add(tl_id, "detailed_project_report", "Detailed Project Report (DPR) & Financials", True, "business", "Comprehensive technical & financial feasibility report with 3-5 year cashflows.")
+            add(tl_id, "machinery_quotations", "Machinery Quotations (Minimum 2 Vendors)", True, "business", "Competitive formal supplier quotes for all capital assets.")
+            add(tl_id, "premises_proof", "Business Premises Lease Deed / Ownership Proof", True, "business", "Registered lease or ownership proof covering loan tenure.")
+            add(tl_id, "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Color passport photographs of the applicant.")
+            add(tl_id, "msme_udyam", "Udyam MSME Registration Certificate", False, "business", "Free online registration on udyamregistration.gov.in.")
+
+        # --- Udyam Nidhi Yojana (UNY) ---
+        add("UNY", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof.")
+        add("UNY", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Official caste certificate.")
+        add("UNY", "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Annual family income certificate within limit.")
+        add("UNY", "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Active bank savings account.")
+        add("UNY", "project_cost_estimate", "Small Enterprise Cost Estimate & Project Plan", True, "business", "Itemized breakdown of fixed capital and working capital needed.")
+        add("UNY", "premises_proof", "Commercial Shop / Space Agreement or Electricity Bill", True, "business", "Proof of location for service unit or retail setup.")
+        add("UNY", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph.")
+        add("UNY", "msme_udyam", "Udyam Registration Certificate", False, "business", "MSME registration certificate for priority processing.")
+
+        # --- Educational Loan Scheme (ELS) ---
+        add("ELS", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof of student.")
+        add("ELS", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Caste certificate of student or parent.")
+        add("ELS", "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Family income proof within ₹5,00,000 limit.")
+        add("ELS", "bank_passbook", "Student / Joint Bank Account Passbook", True, "banking", "Aadhaar-linked student savings account.")
+        add("ELS", "admission_letter", "Official Admission / Enrollment Letter with Bonafide Status", True, "education", "Unconditional offer letter or confirmed seat allotment slip.")
+        add("ELS", "fee_structure", "Official Course Fee Schedule & Expense Breakdown", True, "education", "Institution circular showing semester-wise tuition, hostel, and exam fees.")
+        add("ELS", "academic_marksheets", "Academic Marksheets & Certificates (10th, 12th, Degree)", True, "education", "Self-attested copies of Class 10, 12, or UG transcripts.")
+        add("ELS", "parent_undertaking", "Parent / Guardian Co-Obligation Undertaking", True, "education", "Signed undertaking confirming repayment support.")
+        add("ELS", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Passport photographs of student and co-obligant.")
+        add("ELS", "entrance_scorecard", "Competitive Entrance Exam Scorecard (JEE, NEET, etc.)", False, "education", "Merit entrance examination rank card.")
+
+        # --- VISVAS Scheme ---
+        add("VISVAS", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity proof.")
+        add("VISVAS", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Category certificate.")
+        add("VISVAS", "sanction_letter", "Existing Loan Sanction Order (MUDRA / Stand-Up India)", True, "banking", "Sanction letter demonstrating active qualifying credit facility.")
+        add("VISVAS", "repayment_statement", "Clean Loan Account Statement (Standard Asset Proof)", True, "banking", "Bank statement showing timely repayment and zero NPA/overdue.")
+        add("VISVAS", "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Bank account where 5% interest subvention will be credited.")
+        add("VISVAS", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent passport photograph.")
+
+        # --- Generic Default Scheme ---
+        add("DEFAULT", "aadhaar_card", "Aadhaar Card (with Active Mobile Linked)", True, "kyc", "Primary identity and address proof.")
+        add("DEFAULT", "caste_certificate", "Valid SC / Category Certificate", True, "income_caste", "Caste certificate issued by revenue authority.")
+        add("DEFAULT", "income_certificate", "Annual Family Income Certificate", True, "income_caste", "Annual income proof within eligible limits.")
+        add("DEFAULT", "bank_passbook", "Bank Account Passbook / Cancelled Cheque", True, "banking", "Active bank passbook copy for DBT.")
+        add("DEFAULT", "trade_proposal", "Project / Activity Summary Brief", True, "business", "Summary of activity or loan purpose.")
+        add("DEFAULT", "passport_photo", "Recent Passport-size Photograph", True, "kyc", "Recent color photograph.")
+
+        cursor.executemany(
+            """
+            INSERT OR IGNORE INTO scheme_documents (
+                scheme_id, document_type, document_name, required, category,
+                description, allowed_file_types, max_file_size, active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            docs_to_seed,
+        )
+        conn.commit()
+    except Exception as e:
+        print("Warning: Failed to seed scheme documents:", e)
+
 
 
 
